@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.env*.local
+.env
+*.pem
+infra/*.tfstate*
+infra/.terraform
+tests/e2e/.auth
+playwright-report
+test-results
+npm-debug.log*

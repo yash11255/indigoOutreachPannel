@@ -23,6 +23,7 @@ export type Lead = {
   region: string | null;
   state: string | null;
   district_city: string | null;
+  hobli: string | null;
   institution_type: string | null;
   institution_channel: string | null;
   institution_name: string;
@@ -46,6 +47,63 @@ export type Lead = {
   updated_at: string;
 };
 
+/** Round 2 onward for a lead with multiple touchpoints. Round 1 always lives on the Lead row itself. */
+export type LeadRound = {
+  id: string;
+  lead_id: string;
+  sequence_no: number;
+  title: string | null;
+  planned_date: string | null;
+  executed_date: string | null;
+  status: string;
+  activity_undertaken: string | null;
+  girls_reached: number | null;
+  remarks: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** One step in a lead's Amazon-delivery-style progress timeline. */
+export type TimelineStep = {
+  sequenceNo: number;
+  title: string;
+  plannedDate: string | null;
+  executedDate: string | null;
+  status: string;
+  activityUndertaken: string | null;
+  girlsReached: number | null;
+  /** The underlying round row's id, or null for round 1 (which lives on the lead itself). */
+  roundId: string | null;
+};
+
+export function buildLeadTimeline(lead: Lead, rounds: LeadRound[]): TimelineStep[] {
+  const round1: TimelineStep = {
+    sequenceNo: 1,
+    title: lead.planned_activity || "Round 1",
+    plannedDate: lead.planned_date,
+    executedDate: lead.executed_date,
+    status: lead.status,
+    activityUndertaken: lead.activity_undertaken,
+    girlsReached: lead.girls_reached,
+    roundId: null,
+  };
+  const rest: TimelineStep[] = rounds
+    .slice()
+    .sort((a, b) => a.sequence_no - b.sequence_no)
+    .map((r) => ({
+      sequenceNo: r.sequence_no,
+      title: r.title || `Round ${r.sequence_no}`,
+      plannedDate: r.planned_date,
+      executedDate: r.executed_date,
+      status: r.status,
+      activityUndertaken: r.activity_undertaken,
+      girlsReached: r.girls_reached,
+      roundId: r.id,
+    }));
+  return [round1, ...rest];
+}
+
 export type StatusLookup = {
   code: string;
   meaning: string;
@@ -62,6 +120,29 @@ export type InstitutionType = {
   id: string;
   category: string;
   type: string;
+};
+
+/** NITI Aayog-sourced district reference (source: India_Geography_Master.xlsx). */
+export type DistrictMaster = {
+  id: string;
+  region: string;
+  state: string;
+  district: string;
+  district_code: string | null;
+  division: string | null;
+  is_aspirational: boolean;
+  aspirational_programme: string | null;
+  priority_category: string | null;
+};
+
+/** An interim outreach-update note logged against a lead (or one of its rounds) while it's still in progress. */
+export type LeadUpdate = {
+  id: string;
+  lead_id: string;
+  round_id: string | null;
+  note: string;
+  created_by: string | null;
+  created_at: string;
 };
 
 export type ActivityLog = {

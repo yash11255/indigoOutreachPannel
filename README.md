@@ -1,36 +1,128 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Indigo GWF Outreach Dashboard
 
-## Getting Started
+A web app that replaces the manual `Indigo_GWF_Outreach_Tracker.xlsx` workflow. Team members log
+in, create outreach leads with a planned date, and move them to execution once the activity
+happens. Admins get a cross-team view of every lead plus an upcoming-events calendar.
 
-First, run the development server:
+Stack: Next.js 16 (App Router) + Supabase (Postgres + Auth, free tier).
+
+## 1. Create a Supabase project
+
+1. Go to [supabase.com](https://supabase.com), sign up, and create a new project (free tier).
+2. Once it's provisioned, open **Project Settings -> API**. You'll need:
+   - **Project URL**
+   - **anon public** key
+   - **service_role** key (keep this secret — server-only)
+
+## 2. Configure environment variables
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.local.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Fill in the three values from step 1.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 3. Set up the database schema
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open the Supabase project's **SQL Editor** and run, in order:
 
-## Learn More
+1. `supabase/migrations/0001_schema.sql` — tables, triggers, Row Level Security policies.
+2. `supabase/migrations/0002_seed_lookups.sql` — the 9 teams, canonical statuses, region/state
+   list, and institution types (all taken from the original workbook's `Data Validation Sheet`).
 
-To learn more about Next.js, take a look at the following resources:
+## 4. Install dependencies and run
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Open [http://localhost:3000](http://localhost:3000). You'll land on `/login` — there is no public
+sign-up, so you need at least one admin account first (next step).
 
-## Deploy on Vercel
+## 5. Create your first admin
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+There's no UI for this yet since it requires an admin to already exist. In the Supabase
+dashboard: **Authentication -> Users -> Add user**, create yourself with a password. Then in the
+**SQL Editor**, promote that account:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```sql
+update profiles set role = 'admin', team_id = null
+where email = 'you@example.com';
+```
+
+Log in at `/login`. From **Admin -> Users** you can now create logins for everyone else and
+assign them to a team — team members cannot self-register.
+
+## 6. Import the existing Excel data (optional, one-time)
+
+```bash
+npm run migrate -- "/path/to/Indigo_GWF_Outreach_Tracker.xlsx"
+```
+
+This reads the original workbook and imports:
+
+- The 9 pipeline sheets (BC_IGWF_Outreach, BC_Other Team, BC_Livelihood_Team, CB_Impact Practice,
+  BC_NE_Outreach, BC_FutureTech, BC KA Outreach, CB_PCM Team, Gov Outreach & Partnerships) into
+  the `leads` table.
+- RTO Centers (unpivoted from its daily columns), Digital Outreach, Press, and Outreach Updates
+  into `activity_log` — browsable read-only under **Admin -> Logs**.
+- Activity Reference by Category into `activity_playbook` — a reference guide, also under
+  **Admin -> Logs**.
+
+It refuses to run if `leads` already has rows, to avoid double-importing. Requires
+`SUPABASE_SERVICE_ROLE_KEY` in `.env.local`.
+
+## How the pipeline works
+
+Every lead has a `status` drawn from the workbook's original 11-value vocabulary (Planned,
+Contact Identified, Outreach Request sent, Approval Awaited, Approved, Activity Scheduled,
+Activity Completed, Rejected, No Response, Closed, Contact Details Pending). The UI derives a
+5-stage view from that — **Planned / Outreach Sent / Scheduled / Completed / Stalled** — shown as
+a Kanban board on `/leads`. Filling in an **Executed date** via "Move to execution" is what moves
+a lead out of the Planned stage.
+
+Team members only see and manage their own team's leads (enforced by Postgres Row Level
+Security, not just the UI). Admins see everything, plus `/admin` (cross-team stats), `/admin/users`
+(create and reassign logins), and `/admin/logs` (the imported read-only historical data).
+
+## Running in Docker
+
+A production Docker image is set up (`Dockerfile`, `docker-compose.yml`), verified working end to
+end (build, container start, full login flow against the real Supabase project).
+
+`NEXT_PUBLIC_*` variables get baked into the browser bundle at build time, not read at runtime —
+so they must be passed as build args, not just container env vars, or the client bundle will have
+no Supabase URL/key at all.
+
+**Plain Docker:**
+
+```bash
+docker build \
+  --build-arg NEXT_PUBLIC_SUPABASE_URL=<your-url> \
+  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key> \
+  -t outreach-dashboard .
+
+docker run -d -p 3000:3000 \
+  -e NEXT_PUBLIC_SUPABASE_URL=<your-url> \
+  -e NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key> \
+  -e SUPABASE_SERVICE_ROLE_KEY=<your-secret-key> \
+  outreach-dashboard
+```
+
+**Docker Compose:** copy `.env.local` to `.env` first (Compose auto-loads `.env`, not
+`.env.local`, for both build-arg substitution and the container's runtime environment), then:
+
+```bash
+cp .env.local .env
+docker compose up --build
+```
+
+## Deploying
+
+Two paths are ready:
+
+- **Docker image** (above) — run it anywhere that runs containers: a VM, the EC2 instance from
+  `infra/` (in place of the pm2/nginx steps in `infra/README.md`), ECS, etc.
+- **Vercel** (free tier) pairs naturally with Supabase without Docker at all: connect the repo, add
+  the same three env vars in the Vercel project settings, deploy.

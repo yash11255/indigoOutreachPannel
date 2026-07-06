@@ -197,3 +197,11 @@ create policy "update team leads" on leads for update to authenticated
 
 create policy "delete team leads (admin only)" on leads for delete to authenticated
   using (public.is_admin());
+
+-- activity_log / activity_playbook: read-only imported data, admin-only writes
+-- (used by scripts/migrate-excel.ts, which authenticates as an admin)
+create policy "admins write activity_log" on activity_log for insert to authenticated
+  with check (public.is_admin());
+
+create policy "admins write activity_playbook" on activity_playbook for insert to authenticated
+  with check (public.is_admin());
