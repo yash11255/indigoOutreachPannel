@@ -375,6 +375,47 @@ export async function addLeadUpdate(input: {
   revalidatePath(`/leads/${input.leadId}`);
 }
 
+/**
+ * Changes an activity's planned date — a lead (roundId = null) or one of its
+ * rounds got rescheduled. Logs the change as an outreach update (same log
+ * "Add update" writes to) so there's a record of what the date used to be,
+ * rather than silently overwriting it.
+ */
+export async function rescheduleActivity(input: {
+  leadId: string;
+  roundId: string | null;
+  plannedDate: string;
+}) {
+  const profile = await requireProfileForAction();
+  const supabase = await createClient();
+
+  if (!input.plannedDate) throw new Error("Planned date is required.");
+
+  const table = input.roundId ? "lead_rounds" : "leads";
+  const targetId = input.roundId ?? input.leadId;
+
+  const { data: current } = await supabase.from(table).select("planned_date").eq("id", targetId).single();
+  const oldDate = current?.planned_date;
+
+  if (oldDate === input.plannedDate) return;
+
+  const { error } = await supabase.from(table).update({ planned_date: input.plannedDate }).eq("id", targetId);
+  if (error) throw new Error(error.message);
+
+  await supabase.from("lead_updates").insert({
+    lead_id: input.leadId,
+    round_id: input.roundId,
+    note: oldDate
+      ? `Planned date changed from ${oldDate} to ${input.plannedDate}`
+      : `Planned date set to ${input.plannedDate}`,
+    created_by: profile.id,
+  });
+
+  revalidatePath(`/leads/${input.leadId}`);
+  revalidatePath("/leads");
+  revalidatePath("/calendar");
+}
+
 export async function deleteLead(leadId: string) {
   const profile = await requireProfileForAction();
   if (profile.role !== "admin") throw new Error("Forbidden: admin only");

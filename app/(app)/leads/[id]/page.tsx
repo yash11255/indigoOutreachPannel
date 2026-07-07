@@ -12,6 +12,7 @@ import { StageBadge, StatusBadge } from "@/components/stage-badge";
 import { LeadFormDialog } from "@/components/lead-form";
 import { MoveToExecutionDialog } from "@/components/move-to-execution-dialog";
 import { CancelActivityDialog } from "@/components/cancel-activity-dialog";
+import { RescheduleDialog } from "@/components/reschedule-dialog";
 import { AddRoundDialog } from "@/components/add-round-dialog";
 import { AddUpdateDialog } from "@/components/add-update-dialog";
 import { LeadTimeline } from "@/components/lead-timeline";
@@ -200,6 +201,17 @@ export default async function LeadDetailPage({
               <StatusBadge status={lead.status} />
               {!lead1Resolved && (
                 <>
+                  <RescheduleDialog
+                    leadId={lead.id}
+                    roundId={null}
+                    currentPlannedDate={lead.planned_date}
+                    title={lead.institution_name}
+                    trigger={
+                      <Button size="sm" variant="outline">
+                        Reschedule
+                      </Button>
+                    }
+                  />
                   <MoveToExecutionDialog
                     title={lead.institution_name}
                     initialActivityUndertaken={lead.activity_undertaken}
@@ -252,6 +264,17 @@ export default async function LeadDetailPage({
                 <StatusBadge status={round.status} />
                 {!roundResolved && (
                   <>
+                    <RescheduleDialog
+                      leadId={lead.id}
+                      roundId={round.id}
+                      currentPlannedDate={round.planned_date}
+                      title={`Round ${round.sequence_no}`}
+                      trigger={
+                        <Button size="sm" variant="outline">
+                          Reschedule
+                        </Button>
+                      }
+                    />
                     <MoveToExecutionDialog
                       title={`Round ${round.sequence_no}`}
                       initialActivityUndertaken={round.activity_undertaken}
