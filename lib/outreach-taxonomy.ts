@@ -5,7 +5,7 @@
  * it in code avoids a lookup table + fetch for values that never change.
  */
 
-export const PILLAR_CHANNELS: Record<string, string[]> = {
+const RAW_PILLAR_CHANNELS: Record<string, string[]> = {
   "Government Institutions": [
     "Ministry/Department of Education",
     "Directorate of Technical Education",
@@ -103,37 +103,47 @@ export const PILLAR_CHANNELS: Record<string, string[]> = {
   ],
 };
 
-export const OUTREACH_PILLARS = Object.keys(PILLAR_CHANNELS);
+// Dropdown options are sorted ascending (A→Z) here so every Select built from
+// these lists shows options in the same predictable order, rather than the
+// original mockup's arbitrary curated order.
+export const PILLAR_CHANNELS: Record<string, string[]> = Object.fromEntries(
+  Object.entries(RAW_PILLAR_CHANNELS).map(([pillar, channels]) => [
+    pillar,
+    [...channels].sort((a, b) => a.localeCompare(b)),
+  ]),
+);
 
-export const OUTREACH_MODES = ["Physical", "Digital", "Virtual", "Hybrid", "Media"];
+export const OUTREACH_PILLARS = Object.keys(PILLAR_CHANNELS).sort((a, b) => a.localeCompare(b));
+
+export const OUTREACH_MODES = ["Digital", "Hybrid", "Media", "Physical", "Virtual"];
 
 export const OUTREACH_ACTIVITIES = [
-  "Official email",
-  "Telephonic Discussion",
-  "Student WhatsApp circulation",
-  "Official meeting",
-  "Official circular dissemination",
-  "Social media promotion/ Posting",
+  "Awareness Session - Students",
+  "Awareness session - Faculty",
+  "Community awareness meeting",
+  "Digital news coverage",
+  "Email circulation",
+  "Flyer distribution",
   "Institutional network cascade",
+  "Media interview",
+  "MoU/LoU signing",
+  "Newspaper article",
+  "Notice board display",
+  "Official circular dissemination",
+  "Official email",
+  "Official meeting",
+  "Press release",
+  "Radio spot",
+  "Social media posting",
+  "Social media promotion/ Posting",
+  "Story/reel posting",
+  "Student WhatsApp circulation",
+  "Telephonic Discussion",
+  "Television interview",
+  "Webinar session",
   "WhatsApp circulation",
   "Website listing",
-  "Awareness Session - Students",
-  "Email circulation",
-  "Awareness session - Faculty",
-  "Notice board display",
-  "Flyer distribution",
-  "MoU/LoU signing",
-  "Press release",
-  "Digital news coverage",
-  "Newspaper article",
-  "Media interview",
-  "Television interview",
-  "Radio spot",
-  "Webinar session",
-  "Social media posting",
-  "Community awareness meeting",
-  "Story/reel posting",
-];
+].sort((a, b) => a.localeCompare(b));
 
 /** Sentinel value used by "Other (specify)" options to reveal a free-text fallback input. */
 export const OTHER_VALUE = "__other__";

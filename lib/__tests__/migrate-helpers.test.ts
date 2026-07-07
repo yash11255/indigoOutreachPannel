@@ -45,6 +45,14 @@ describe("isoDate", () => {
     assert.equal(isoDate(null), null);
     assert.equal(isoDate(undefined), null);
   });
+  test("rounds away sub-day float drift instead of flooring to the previous day", () => {
+    // Google Sheets exports sometimes store a date serial a few seconds shy
+    // of midnight (e.g. 23:59:50) instead of exact midnight.
+    assert.equal(isoDate(new Date("2026-06-14T18:29:50.000Z")), "2026-06-15");
+  });
+  test("keeps the same day for drift just after midnight", () => {
+    assert.equal(isoDate(new Date("2026-06-15T00:00:10.000Z")), "2026-06-15");
+  });
 });
 
 describe("normalizeStatus", () => {

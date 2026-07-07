@@ -13,9 +13,18 @@ export function num(v: unknown): number | null {
   return m ? Number(m[0]) : null;
 }
 
+const MS_PER_DAY = 86_400_000;
+
 export function isoDate(v: unknown): string | null {
   if (!v) return null;
-  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (v instanceof Date) {
+    // Excel/Sheets date serials exported from Google Sheets sometimes carry
+    // tiny floating-point drift (e.g. 23:59:50 instead of exact midnight),
+    // which pushes a plain toISOString() truncation back a day. Round to the
+    // nearest day first to recover the intended calendar date.
+    const rounded = new Date(Math.round(v.getTime() / MS_PER_DAY) * MS_PER_DAY);
+    return rounded.toISOString().slice(0, 10);
+  }
   return null;
 }
 

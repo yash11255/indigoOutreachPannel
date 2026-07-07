@@ -3,9 +3,17 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { createLeadRound } from "@/lib/actions/leads";
+import { OUTREACH_ACTIVITIES, OTHER_VALUE } from "@/lib/outreach-taxonomy";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -18,8 +26,12 @@ import {
 export function AddRoundDialog({ leadId, trigger }: { leadId: string; trigger: React.ReactElement }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
-  const [title, setTitle] = useState("");
+  const [activity, setActivity] = useState("");
+  const [activityOtherText, setActivityOtherText] = useState("");
   const [plannedDate, setPlannedDate] = useState("");
+
+  const activityIsOther = activity === OTHER_VALUE;
+  const resolvedActivity = activityIsOther ? activityOtherText : activity;
 
   function submit() {
     if (!plannedDate) {
@@ -28,10 +40,11 @@ export function AddRoundDialog({ leadId, trigger }: { leadId: string; trigger: R
     }
     startTransition(async () => {
       try {
-        await createLeadRound({ leadId, title: title || undefined, plannedDate });
+        await createLeadRound({ leadId, title: resolvedActivity || undefined, plannedDate });
         toast.success("Round added");
         setOpen(false);
-        setTitle("");
+        setActivity("");
+        setActivityOtherText("");
         setPlannedDate("");
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to add round");
@@ -48,13 +61,32 @@ export function AddRoundDialog({ leadId, trigger }: { leadId: string; trigger: R
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="round_title">Title</Label>
-            <Input
-              id="round_title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Follow-up visit, Final signup drive…"
-            />
+            <Label htmlFor="round_activity">Outreach Activity</Label>
+            <Select value={activity} onValueChange={(v) => setActivity(v ?? "")}>
+              <SelectTrigger id="round_activity">
+                <SelectValue>
+                  {(value: string) => {
+                    if (!value) return "Select activity";
+                    return value === OTHER_VALUE ? "Other (specify)" : value;
+                  }}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {OUTREACH_ACTIVITIES.map((a) => (
+                  <SelectItem key={a} value={a}>
+                    {a}
+                  </SelectItem>
+                ))}
+                <SelectItem value={OTHER_VALUE}>Other (specify)</SelectItem>
+              </SelectContent>
+            </Select>
+            {activityIsOther && (
+              <Input
+                value={activityOtherText}
+                onChange={(e) => setActivityOtherText(e.target.value)}
+                placeholder="Specify…"
+              />
+            )}
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="round_planned_date">Planned date *</Label>
