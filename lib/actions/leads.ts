@@ -193,6 +193,7 @@ export async function createLeadRound(input: {
   title?: string;
   plannedDate: string;
   totalStudents?: number;
+  totalGirls?: number;
 }) {
   const profile = await requireProfileForAction();
   const supabase = await createClient();
@@ -208,6 +209,7 @@ export async function createLeadRound(input: {
     title: input.title || null,
     planned_date: input.plannedDate,
     no_of_institutions: input.totalStudents ?? null,
+    planned_girls_reach: input.totalGirls ?? null,
     status: "Planned",
     created_by: profile.id,
   });

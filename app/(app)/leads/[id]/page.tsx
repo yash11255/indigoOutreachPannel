@@ -252,6 +252,7 @@ export default async function LeadDetailPage({
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
               <Field label="Planned date" value={round.planned_date} />
               <Field label="Total students" value={round.no_of_institutions} />
+              <Field label="Total girls" value={round.planned_girls_reach} />
               <Field label="Executed date" value={round.executed_date} />
               <Field label="Activity undertaken" value={round.activity_undertaken} />
               <Field label="Girls reached" value={round.girls_reached} />

@@ -30,6 +30,7 @@ export function AddRoundDialog({ leadId, trigger }: { leadId: string; trigger: R
   const [activityOtherText, setActivityOtherText] = useState("");
   const [plannedDate, setPlannedDate] = useState("");
   const [totalStudents, setTotalStudents] = useState("");
+  const [totalGirls, setTotalGirls] = useState("");
 
   const activityIsOther = activity === OTHER_VALUE;
   const resolvedActivity = activityIsOther ? activityOtherText : activity;
@@ -46,6 +47,7 @@ export function AddRoundDialog({ leadId, trigger }: { leadId: string; trigger: R
           title: resolvedActivity || undefined,
           plannedDate,
           totalStudents: totalStudents ? Number(totalStudents) : undefined,
+          totalGirls: totalGirls ? Number(totalGirls) : undefined,
         });
         toast.success("Round added");
         setOpen(false);
@@ -53,6 +55,7 @@ export function AddRoundDialog({ leadId, trigger }: { leadId: string; trigger: R
         setActivityOtherText("");
         setPlannedDate("");
         setTotalStudents("");
+        setTotalGirls("");
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to add round");
       }
@@ -105,15 +108,27 @@ export function AddRoundDialog({ leadId, trigger }: { leadId: string; trigger: R
               required
             />
           </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="round_total_students">Total students</Label>
-            <Input
-              id="round_total_students"
-              type="number"
-              inputMode="numeric"
-              value={totalStudents}
-              onChange={(e) => setTotalStudents(e.target.value)}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="round_total_students">Total students</Label>
+              <Input
+                id="round_total_students"
+                type="number"
+                inputMode="numeric"
+                value={totalStudents}
+                onChange={(e) => setTotalStudents(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="round_total_girls">Total girls</Label>
+              <Input
+                id="round_total_girls"
+                type="number"
+                inputMode="numeric"
+                value={totalGirls}
+                onChange={(e) => setTotalGirls(e.target.value)}
+              />
+            </div>
           </div>
         </div>
         <DialogFooter>

@@ -61,6 +61,7 @@ export type LeadRound = {
   activity_undertaken: string | null;
   girls_reached: number | null;
   no_of_institutions: number | null;
+  planned_girls_reach: number | null;
   remarks: string | null;
   drive_link: string | null;
   created_by: string | null;
