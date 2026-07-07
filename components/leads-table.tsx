@@ -31,7 +31,30 @@ export function LeadsTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <>
+      {/* Card list below sm — a wide table with 8 columns doesn't work at phone width. */}
+      <div className="flex flex-col gap-3 sm:hidden">
+        {leads.map((lead) => (
+          <Link
+            key={lead.id}
+            href={`/leads/${lead.id}`}
+            className="flex flex-col gap-2 rounded-md border p-3 hover:bg-neutral-50"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <span className="font-medium">{lead.institution_name}</span>
+              <StatusBadge status={lead.status} />
+            </div>
+            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-neutral-500">
+              {showTeamColumn && <span>{teamName(lead.team_id)}</span>}
+              <span>{[lead.region, lead.state].filter(Boolean).join(" / ") || "—"}</span>
+              <span>Planned {lead.planned_date ?? "—"}</span>
+              {lead.executed_date && <span>Executed {lead.executed_date}</span>}
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-md border sm:block">
       <Table>
         <TableHeader>
           <TableRow>
@@ -84,6 +107,7 @@ export function LeadsTable({
           ))}
         </TableBody>
       </Table>
-    </div>
+      </div>
+    </>
   );
 }

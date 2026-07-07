@@ -112,7 +112,7 @@ export default async function LeadDetailPage({
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-semibold text-neutral-700">Progress</h2>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {activeStep && (
                 <AddUpdateDialog
                   leadId={lead.id}
@@ -193,11 +193,11 @@ export default async function LeadDetailPage({
 
       <Card>
         <CardContent className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-sm font-semibold text-neutral-700">
               Round 1 — {lead.planned_activity || "Untitled"}
             </h2>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={lead.status} />
               {!lead1Resolved && (
                 <>
@@ -256,11 +256,11 @@ export default async function LeadDetailPage({
         return (
         <Card key={round.id}>
           <CardContent className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-sm font-semibold text-neutral-700">
                 Round {round.sequence_no} — {round.title || "Untitled"}
               </h2>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={round.status} />
                 {!roundResolved && (
                   <>

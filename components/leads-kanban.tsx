@@ -21,16 +21,16 @@ export function LeadsKanban({
   const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? "—";
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+    <div className="flex gap-4 overflow-x-auto pb-2 md:grid md:grid-cols-5 md:overflow-visible">
       {STAGE_ORDER.map((stage) => {
         const stageLeads = leads.filter((l) => stageForStatus(l.status) === stage);
         return (
-          <div key={stage} className="flex flex-col gap-2">
+          <div key={stage} className="flex w-64 shrink-0 flex-col gap-2 md:w-auto">
             <div className="flex items-center justify-between px-1">
               <h3 className="text-sm font-semibold text-neutral-700">{STAGE_LABELS[stage]}</h3>
               <span className="text-xs text-neutral-400">{stageLeads.length}</span>
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto pr-1">
               {stageLeads.map((lead) => (
                 <Card key={lead.id} className="gap-2 py-3">
                   <CardHeader className="px-3">

@@ -28,7 +28,7 @@ export function CreateMemberForm({ teams }: { teams: Team[] }) {
         <CardTitle>Create teammate login</CardTitle>
       </CardHeader>
       <CardContent>
-        <form action={formAction} className="grid grid-cols-2 gap-4">
+        <form action={formAction} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
             <Label htmlFor="full_name">Full name</Label>
             <Input id="full_name" name="full_name" required />
@@ -73,15 +73,15 @@ export function CreateMemberForm({ teams }: { teams: Team[] }) {
             </div>
           )}
 
-          {state.error && <p className="col-span-2 text-sm text-[#da1e28]">{state.error}</p>}
+          {state.error && <p className="sm:col-span-2 text-sm text-[#da1e28]">{state.error}</p>}
           {state.success && state.tempPassword && (
-            <p className="col-span-2 border border-[#a7f0ba] bg-[#defbe6] p-3 text-sm text-[#0e6027]">
+            <p className="sm:col-span-2 border border-[#a7f0ba] bg-[#defbe6] p-3 text-sm text-[#0e6027]">
               Account created. Temporary password (share this with them once — it won&apos;t be
               shown again): <span className="font-mono font-semibold">{state.tempPassword}</span>
             </p>
           )}
 
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <Button type="submit" disabled={pending}>
               {pending ? "Creating…" : "Create login"}
             </Button>

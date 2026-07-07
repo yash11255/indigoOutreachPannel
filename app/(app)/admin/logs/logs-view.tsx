@@ -64,14 +64,18 @@ export function LogsView({
 
   return (
     <Tabs value={tab} onValueChange={setTab}>
-      <TabsList>
-        {Object.keys(SOURCE_LABELS).map((s) => (
-          <TabsTrigger key={s} value={s}>
-            {SOURCE_LABELS[s]} ({logsBySource[s]?.length ?? 0})
+      <div className="overflow-x-auto">
+        <TabsList className="w-max">
+          {Object.keys(SOURCE_LABELS).map((s) => (
+            <TabsTrigger key={s} value={s} className="whitespace-nowrap">
+              {SOURCE_LABELS[s]} ({logsBySource[s]?.length ?? 0})
+            </TabsTrigger>
+          ))}
+          <TabsTrigger value="playbook" className="whitespace-nowrap">
+            Activity Playbook ({playbook.length})
           </TabsTrigger>
-        ))}
-        <TabsTrigger value="playbook">Activity Playbook ({playbook.length})</TabsTrigger>
-      </TabsList>
+        </TabsList>
+      </div>
 
       {Object.keys(SOURCE_LABELS).map((s) => (
         <TabsContent key={s} value={s}>
