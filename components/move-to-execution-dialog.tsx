@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import type { MarkExecutedInput } from "@/lib/actions/leads";
-import { OUTREACH_ACTIVITIES, OTHER_VALUE } from "@/lib/outreach-taxonomy";
+import { OUTREACH_ACTIVITIES, OTHER_VALUE, OUTREACH_PHOTOS_FOLDER_URL } from "@/lib/outreach-taxonomy";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -163,13 +163,23 @@ export function MoveToExecutionDialog({
             </div>
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="move_drive_link">Google Drive link</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="move_drive_link">Google Drive link</Label>
+              <a
+                href={OUTREACH_PHOTOS_FOLDER_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-600 hover:underline"
+              >
+                Upload photos here ↗
+              </a>
+            </div>
             <Input
               id="move_drive_link"
               type="url"
               value={driveLink}
               onChange={(e) => setDriveLink(e.target.value)}
-              placeholder="Link to session photos/evidence…"
+              placeholder="Paste the shareable link after uploading…"
             />
           </div>
           <div className="flex flex-col gap-2">

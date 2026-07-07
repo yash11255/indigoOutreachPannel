@@ -11,6 +11,7 @@ import {
   OUTREACH_MODES,
   OUTREACH_ACTIVITIES,
   OTHER_VALUE,
+  OUTREACH_PHOTOS_FOLDER_URL,
 } from "@/lib/outreach-taxonomy";
 import { SelectWithOther } from "@/components/select-with-other";
 import { Button } from "@/components/ui/button";
@@ -375,13 +376,23 @@ export function LeadFormDialog({
                 />
               </div>
               <div className="flex flex-col gap-2 sm:col-span-2">
-                <Label htmlFor="drive_link">Google Drive link</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="drive_link">Google Drive link</Label>
+                  <a
+                    href={OUTREACH_PHOTOS_FOLDER_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    Upload photos here ↗
+                  </a>
+                </div>
                 <Input
                   id="drive_link"
                   name="drive_link"
                   type="url"
                   defaultValue={lead?.drive_link ?? ""}
-                  placeholder="Link to session photos/evidence…"
+                  placeholder="Paste the shareable link after uploading…"
                 />
               </div>
             </div>

@@ -145,5 +145,9 @@ export const OUTREACH_ACTIVITIES = [
   "Website listing",
 ].sort((a, b) => a.localeCompare(b));
 
+/** Shared Google Drive folder where session photos/evidence get uploaded, before pasting the resulting link into the "Google Drive link" field. */
+export const OUTREACH_PHOTOS_FOLDER_URL =
+  "https://drive.google.com/drive/u/0/folders/1Q4BVyUoQ3e8z1iDTSBbdP4xbu--YoGAJ";
+
 /** Sentinel value used by "Other (specify)" options to reveal a free-text fallback input. */
 export const OTHER_VALUE = "__other__";
