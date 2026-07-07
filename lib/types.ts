@@ -217,3 +217,7 @@ export const STAGE_ORDER: LeadStage[] = [
   "completed",
   "stalled",
 ];
+
+/** The two canonical statuses that mean "this activity isn't happening" — same vocabulary the Edit form's Status picker already offers. */
+export const CANCEL_STATUSES = ["Rejected", "No Response"] as const;
+export type CancelInput = { status: (typeof CANCEL_STATUSES)[number]; remarks?: string };

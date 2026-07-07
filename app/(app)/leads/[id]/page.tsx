@@ -11,15 +11,16 @@ import {
 import { StageBadge, StatusBadge } from "@/components/stage-badge";
 import { LeadFormDialog } from "@/components/lead-form";
 import { MoveToExecutionDialog } from "@/components/move-to-execution-dialog";
+import { CancelActivityDialog } from "@/components/cancel-activity-dialog";
 import { AddRoundDialog } from "@/components/add-round-dialog";
 import { AddUpdateDialog } from "@/components/add-update-dialog";
 import { LeadTimeline } from "@/components/lead-timeline";
 import { DeleteLeadButton } from "@/components/delete-lead-button";
-import { markLeadExecuted, markRoundExecuted } from "@/lib/actions/leads";
+import { markLeadExecuted, markRoundExecuted, cancelLead, cancelRound } from "@/lib/actions/leads";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { buildLeadTimeline } from "@/lib/types";
+import { buildLeadTimeline, stageForStatus } from "@/lib/types";
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -69,8 +70,10 @@ export default async function LeadDetailPage({
   const aspirational = await getAspirationalStatus(lead.state, lead.district_city);
   const teamName = teams.find((t) => t.id === lead.team_id)?.name ?? "—";
   const timeline = buildLeadTimeline(lead, rounds);
-  // The step currently in progress (no executed date yet) — updates can only be logged against it.
-  const activeStep = timeline.find((s) => !s.executedDate);
+  // The step currently in progress: no executed date yet, and not already
+  // cancelled — updates can only be logged against a step still genuinely open.
+  const activeStep = timeline.find((s) => !s.executedDate && stageForStatus(s.status) !== "stalled");
+  const lead1Resolved = !!lead.executed_date || stageForStatus(lead.status) === "stalled";
 
   return (
     <div className="flex flex-col gap-6">
@@ -100,17 +103,6 @@ export default async function LeadDetailPage({
             currentUserName={profile.full_name || profile.email}
             trigger={<Button variant="outline">Edit</Button>}
           />
-          {!lead.executed_date && (
-            <MoveToExecutionDialog
-              title={lead.institution_name}
-              initialActivityUndertaken={lead.activity_undertaken}
-              initialGirlsReached={lead.girls_reached}
-              initialTotalStudents={lead.no_of_institutions}
-              initialDriveLink={lead.drive_link}
-              onConfirm={markLeadExecuted.bind(null, lead.id)}
-              trigger={<Button>Mark as executed</Button>}
-            />
-          )}
           {isAdmin && <DeleteLeadButton leadId={lead.id} />}
         </div>
       </div>
@@ -198,32 +190,58 @@ export default async function LeadDetailPage({
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <Card>
-          <CardContent className="flex flex-col gap-4">
-            <h2 className="text-sm font-semibold text-neutral-700">Round 1 — Planned</h2>
-            <Field label="Planned activity" value={lead.planned_activity} />
+      <Card>
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-neutral-700">
+              Round 1 — {lead.planned_activity || "Untitled"}
+            </h2>
+            <div className="flex items-center gap-2">
+              <StatusBadge status={lead.status} />
+              {!lead1Resolved && (
+                <>
+                  <MoveToExecutionDialog
+                    title={lead.institution_name}
+                    initialActivityUndertaken={lead.activity_undertaken}
+                    initialGirlsReached={lead.girls_reached}
+                    initialTotalStudents={lead.no_of_institutions}
+                    initialDriveLink={lead.drive_link}
+                    onConfirm={markLeadExecuted.bind(null, lead.id)}
+                    trigger={
+                      <Button size="sm" variant="outline">
+                        Mark as executed
+                      </Button>
+                    }
+                  />
+                  <CancelActivityDialog
+                    title={lead.institution_name}
+                    onConfirm={cancelLead.bind(null, lead.id)}
+                    trigger={
+                      <Button size="sm" variant="outline">
+                        Cancel
+                      </Button>
+                    }
+                  />
+                </>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <Field label="Planned date" value={lead.planned_date} />
             <Field label="Total students" value={lead.no_of_institutions} />
             <Field label="Planned girls reach" value={lead.planned_girls_reach} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex flex-col gap-4">
-            <h2 className="text-sm font-semibold text-neutral-700">Round 1 — Execution</h2>
             <Field label="Executed date" value={lead.executed_date} />
             <Field label="Activity undertaken" value={lead.activity_undertaken} />
             <Field label="Girls reached" value={lead.girls_reached} />
-            <Field
-              label="Interest forms submitted"
-              value={lead.quick_interest_form_submitted}
-            />
+            <Field label="Interest forms submitted" value={lead.quick_interest_form_submitted} />
             <DriveLinkField value={lead.drive_link} />
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      {rounds.map((round) => (
+      {rounds.map((round) => {
+        const roundResolved = !!round.executed_date || stageForStatus(round.status) === "stalled";
+        return (
         <Card key={round.id}>
           <CardContent className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
@@ -232,20 +250,31 @@ export default async function LeadDetailPage({
               </h2>
               <div className="flex items-center gap-2">
                 <StatusBadge status={round.status} />
-                {!round.executed_date && (
-                  <MoveToExecutionDialog
-                    title={`Round ${round.sequence_no}`}
-                    initialActivityUndertaken={round.activity_undertaken}
-                    initialGirlsReached={round.girls_reached}
-                    initialTotalStudents={round.no_of_institutions}
-                    initialDriveLink={round.drive_link}
-                    onConfirm={markRoundExecuted.bind(null, round.id, lead.id)}
-                    trigger={
-                      <Button size="sm" variant="outline">
-                        Mark as executed
-                      </Button>
-                    }
-                  />
+                {!roundResolved && (
+                  <>
+                    <MoveToExecutionDialog
+                      title={`Round ${round.sequence_no}`}
+                      initialActivityUndertaken={round.activity_undertaken}
+                      initialGirlsReached={round.girls_reached}
+                      initialTotalStudents={round.no_of_institutions}
+                      initialDriveLink={round.drive_link}
+                      onConfirm={markRoundExecuted.bind(null, round.id, lead.id)}
+                      trigger={
+                        <Button size="sm" variant="outline">
+                          Mark as executed
+                        </Button>
+                      }
+                    />
+                    <CancelActivityDialog
+                      title={`Round ${round.sequence_no}`}
+                      onConfirm={cancelRound.bind(null, round.id, lead.id)}
+                      trigger={
+                        <Button size="sm" variant="outline">
+                          Cancel
+                        </Button>
+                      }
+                    />
+                  </>
                 )}
               </div>
             </div>
@@ -260,7 +289,8 @@ export default async function LeadDetailPage({
             </div>
           </CardContent>
         </Card>
-      ))}
+        );
+      })}
 
       <Card>
         <CardContent>

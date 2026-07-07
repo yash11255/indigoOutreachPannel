@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfileForAction } from "@/lib/data/session";
+import type { CancelInput } from "@/lib/types";
 
 export type LeadFormState = { error?: string; success?: boolean };
 
@@ -26,10 +27,11 @@ async function appendRemarks(
   table: "leads" | "lead_rounds",
   id: string,
   addition: string,
+  label: string = "Completed",
 ): Promise<string> {
   const { data } = await supabase.from(table).select("remarks").eq("id", id).single();
   const existing = data?.remarks?.trim();
-  return existing ? `${existing} | Completed: ${addition}` : `Completed: ${addition}`;
+  return existing ? `${existing} | ${label}: ${addition}` : `${label}: ${addition}`;
 }
 
 /**
@@ -187,6 +189,32 @@ export async function markLeadExecuted(leadId: string, input: MarkExecutedInput)
   revalidatePath("/admin");
 }
 
+/**
+ * Marks round 1 (the lead itself) as cancelled — it was planned but isn't
+ * happening. Unlike markLeadExecuted this doesn't set an executed_date; it
+ * just resolves the status to Rejected/No Response, same vocabulary as the
+ * Edit form's Status picker.
+ */
+export async function cancelLead(leadId: string, input: CancelInput) {
+  await requireProfileForAction();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("leads")
+    .update({
+      status: input.status,
+      ...(input.remarks ? { remarks: await appendRemarks(supabase, "leads", leadId, input.remarks, "Cancelled") } : {}),
+    })
+    .eq("id", leadId);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/calendar");
+  revalidatePath("/admin");
+}
+
 /** Adds another round (touchpoint) to a lead — round 2, 3, etc. */
 export async function createLeadRound(input: {
   leadId: string;
@@ -269,6 +297,36 @@ export async function markRoundExecuted(
     .update({ status: allDone ? "Activity Completed" : "Planned" })
     .eq("id", leadId);
   if (leadError) throw new Error(leadError.message);
+
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/leads");
+  revalidatePath("/calendar");
+  revalidatePath("/admin");
+}
+
+/**
+ * Marks a round as cancelled — it was planned but isn't happening. Same
+ * shape as cancelLead, just targeting a lead_rounds row instead. Doesn't
+ * touch the parent lead's own status: a cancelled round never gets an
+ * executed_date, so it simply won't count toward the lead being marked
+ * Activity Completed via allRoundsDone — the lead stays Planned until either
+ * this round is somehow resolved differently or another round covers for it.
+ */
+export async function cancelRound(roundId: string, leadId: string, input: CancelInput) {
+  await requireProfileForAction();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("lead_rounds")
+    .update({
+      status: input.status,
+      ...(input.remarks
+        ? { remarks: await appendRemarks(supabase, "lead_rounds", roundId, input.remarks, "Cancelled") }
+        : {}),
+    })
+    .eq("id", roundId);
+
+  if (error) throw new Error(error.message);
 
   revalidatePath(`/leads/${leadId}`);
   revalidatePath("/leads");
