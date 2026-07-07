@@ -32,6 +32,23 @@ async function appendRemarks(
   return existing ? `${existing} | Completed: ${addition}` : `Completed: ${addition}`;
 }
 
+/**
+ * Whether every round for a lead — round 1 (the lead row itself) plus every
+ * lead_rounds row — has an executed_date. Rounds can now be completed out of
+ * order (an ad-hoc round can finish before an earlier-planned one), so the
+ * lead only counts as fully "Activity Completed" once nothing is left
+ * pending, not just whenever any single round finishes.
+ */
+async function allRoundsDone(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  leadId: string,
+  round1ExecutedDate: string | null,
+): Promise<boolean> {
+  if (!round1ExecutedDate) return false;
+  const { data } = await supabase.from("lead_rounds").select("executed_date").eq("lead_id", leadId);
+  return (data ?? []).every((r) => !!r.executed_date);
+}
+
 /** Fields shared by create + update, pulled from FormData. */
 function leadFieldsFromForm(fd: FormData) {
   return {
@@ -58,6 +75,7 @@ function leadFieldsFromForm(fd: FormData) {
     quick_interest_form_submitted: num(fd, "quick_interest_form_submitted"),
     responsible_member: str(fd, "responsible_member"),
     remarks: str(fd, "remarks"),
+    drive_link: str(fd, "drive_link"),
   };
 }
 
@@ -123,6 +141,8 @@ export type MarkExecutedInput = {
   executedDate: string;
   activityUndertaken?: string;
   girlsReached?: number;
+  totalStudents?: number;
+  driveLink?: string;
   completionRemarks?: string;
 };
 
@@ -141,13 +161,20 @@ export async function markLeadExecuted(leadId: string, input: MarkExecutedInput)
   await requireProfileForAction();
   const supabase = await createClient();
 
+  // This round (round 1) is done, but other rounds may still be pending (they
+  // don't have to finish in order) — only call the whole lead "Completed"
+  // once nothing else is left outstanding.
+  const allDone = await allRoundsDone(supabase, leadId, input.executedDate);
+
   const { error } = await supabase
     .from("leads")
     .update({
-      status: "Activity Completed",
+      status: allDone ? "Activity Completed" : "Planned",
       executed_date: input.executedDate,
       activity_undertaken: input.activityUndertaken ?? null,
       girls_reached: input.girlsReached ?? null,
+      no_of_institutions: input.totalStudents ?? null,
+      drive_link: input.driveLink ?? null,
       ...(input.completionRemarks ? { remarks: await appendRemarks(supabase, "leads", leadId, input.completionRemarks) } : {}),
     })
     .eq("id", leadId);
@@ -165,6 +192,7 @@ export async function createLeadRound(input: {
   leadId: string;
   title?: string;
   plannedDate: string;
+  totalStudents?: number;
 }) {
   const profile = await requireProfileForAction();
   const supabase = await createClient();
@@ -179,6 +207,7 @@ export async function createLeadRound(input: {
     sequence_no: (count ?? 0) + 2, // round 1 is the lead itself
     title: input.title || null,
     planned_date: input.plannedDate,
+    no_of_institutions: input.totalStudents ?? null,
     status: "Planned",
     created_by: profile.id,
   });
@@ -216,6 +245,8 @@ export async function markRoundExecuted(
       executed_date: input.executedDate,
       activity_undertaken: input.activityUndertaken ?? null,
       girls_reached: input.girlsReached ?? null,
+      no_of_institutions: input.totalStudents ?? null,
+      drive_link: input.driveLink ?? null,
       ...(input.completionRemarks
         ? { remarks: await appendRemarks(supabase, "lead_rounds", roundId, input.completionRemarks) }
         : {}),
@@ -225,11 +256,15 @@ export async function markRoundExecuted(
   if (error) throw new Error(error.message);
 
   // Mirror onto the parent lead: Kanban/admin stats key off `leads.status`
-  // directly (they don't look at lead_rounds), so without this a lead whose
-  // *later* round finished would never show up as Completed anywhere.
+  // directly (they don't look at lead_rounds). Rounds can finish out of
+  // order, so only flip to Completed once every round (including this one)
+  // has an executed_date — otherwise keep it Planned since something's still
+  // outstanding.
+  const { data: leadRow } = await supabase.from("leads").select("executed_date").eq("id", leadId).single();
+  const allDone = await allRoundsDone(supabase, leadId, leadRow?.executed_date ?? null);
   const { error: leadError } = await supabase
     .from("leads")
-    .update({ status: "Activity Completed" })
+    .update({ status: allDone ? "Activity Completed" : "Planned" })
     .eq("id", leadId);
   if (leadError) throw new Error(leadError.message);
 

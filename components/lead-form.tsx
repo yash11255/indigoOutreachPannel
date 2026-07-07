@@ -374,6 +374,16 @@ export function LeadFormDialog({
                   defaultValue={lead?.quick_interest_form_submitted ?? ""}
                 />
               </div>
+              <div className="flex flex-col gap-2 sm:col-span-2">
+                <Label htmlFor="drive_link">Google Drive link</Label>
+                <Input
+                  id="drive_link"
+                  name="drive_link"
+                  type="url"
+                  defaultValue={lead?.drive_link ?? ""}
+                  placeholder="Link to session photos/evidence…"
+                />
+              </div>
             </div>
           )}
 

@@ -43,6 +43,8 @@ export type Lead = {
   quick_interest_form_submitted: number | null;
   responsible_member: string | null;
   remarks: string | null;
+  /** Link to a Google Drive folder/file with session photos or other evidence. */
+  drive_link: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -58,7 +60,9 @@ export type LeadRound = {
   status: string;
   activity_undertaken: string | null;
   girls_reached: number | null;
+  no_of_institutions: number | null;
   remarks: string | null;
+  drive_link: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

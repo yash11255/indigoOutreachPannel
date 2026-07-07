@@ -4,8 +4,7 @@ import { stageForStatus, type TimelineStep } from "@/lib/types";
 
 const DOT_COLOR = {
   done: "bg-[#0f62fe] border-[#0f62fe]",
-  current: "bg-white border-[#0f62fe]",
-  upcoming: "bg-white border-[#c6c6c6]",
+  pending: "bg-white border-[#c6c6c6]",
 } as const;
 
 const LINE_COLOR = {
@@ -13,20 +12,20 @@ const LINE_COLOR = {
   upcoming: "bg-[#c6c6c6]",
 } as const;
 
-/** Amazon-delivery-style progress tracker: a row of dots connected by a line, one per round. */
+/**
+ * Amazon-delivery-style progress tracker: a row of dots connected by a line,
+ * one per round. Rounds don't have to finish in order — an institution can
+ * have a future round already planned while an ad-hoc round in between gets
+ * executed first — so each dot's done/pending state is its own
+ * `executedDate`, not a single "current" cutoff along the sequence.
+ */
 export function LeadTimeline({ steps }: { steps: TimelineStep[] }) {
-  // "current" = the first step that isn't yet executed; everything before it is "done",
-  // everything after is "upcoming".
-  const currentIndex = steps.findIndex((s) => !s.executedDate);
-  const effectiveCurrent = currentIndex === -1 ? steps.length : currentIndex;
-
   return (
     <div className="overflow-x-auto py-2">
       <div className="flex min-w-max items-start">
         {steps.map((step, i) => {
-          const isDone = i < effectiveCurrent;
-          const isCurrent = i === effectiveCurrent;
-          const dotState = isDone ? "done" : isCurrent ? "current" : "upcoming";
+          const isDone = !!step.executedDate;
+          const prevDone = i === 0 || !!steps[i - 1].executedDate;
           const stage = stageForStatus(step.status);
           const isStalled = stage === "stalled";
 
@@ -35,15 +34,15 @@ export function LeadTimeline({ steps }: { steps: TimelineStep[] }) {
               <div className="flex w-36 flex-col items-center gap-2 px-1 text-center">
                 <div className="flex w-full items-center">
                   <div
-                    className={`h-0.5 flex-1 ${i === 0 ? "invisible" : isDone ? LINE_COLOR.done : LINE_COLOR.upcoming}`}
+                    className={`h-0.5 flex-1 ${i === 0 ? "invisible" : prevDone ? LINE_COLOR.done : LINE_COLOR.upcoming}`}
                   />
                   <div
                     className={`h-4 w-4 shrink-0 rounded-full border-2 ${
-                      isStalled ? "border-[#da1e28] bg-[#da1e28]" : DOT_COLOR[dotState]
+                      isStalled ? "border-[#da1e28] bg-[#da1e28]" : isDone ? DOT_COLOR.done : DOT_COLOR.pending
                     }`}
                   />
                   <div
-                    className={`h-0.5 flex-1 ${i === steps.length - 1 ? "invisible" : i < effectiveCurrent - 1 || (i === effectiveCurrent - 1 && isDone) ? LINE_COLOR.done : LINE_COLOR.upcoming}`}
+                    className={`h-0.5 flex-1 ${i === steps.length - 1 ? "invisible" : isDone ? LINE_COLOR.done : LINE_COLOR.upcoming}`}
                   />
                 </div>
                 <div>

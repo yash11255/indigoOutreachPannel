@@ -3,10 +3,18 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import type { MarkExecutedInput } from "@/lib/actions/leads";
+import { OUTREACH_ACTIVITIES, OTHER_VALUE } from "@/lib/outreach-taxonomy";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +35,8 @@ export function MoveToExecutionDialog({
   initialExecutedDate,
   initialActivityUndertaken,
   initialGirlsReached,
+  initialTotalStudents,
+  initialDriveLink,
   onConfirm,
   trigger,
 }: {
@@ -34,6 +44,8 @@ export function MoveToExecutionDialog({
   initialExecutedDate?: string | null;
   initialActivityUndertaken?: string | null;
   initialGirlsReached?: number | null;
+  initialTotalStudents?: number | null;
+  initialDriveLink?: string | null;
   onConfirm: (input: MarkExecutedInput) => Promise<void>;
   trigger: React.ReactElement;
 }) {
@@ -42,8 +54,21 @@ export function MoveToExecutionDialog({
   const [executedDate, setExecutedDate] = useState(
     initialExecutedDate ?? new Date().toISOString().slice(0, 10),
   );
-  const [activityUndertaken, setActivityUndertaken] = useState(initialActivityUndertaken ?? "");
+
+  const activityInitialIsOther =
+    !!initialActivityUndertaken && !OUTREACH_ACTIVITIES.includes(initialActivityUndertaken);
+  const [activityUndertaken, setActivityUndertaken] = useState(
+    activityInitialIsOther ? OTHER_VALUE : (initialActivityUndertaken ?? ""),
+  );
+  const [activityOtherText, setActivityOtherText] = useState(
+    activityInitialIsOther ? (initialActivityUndertaken ?? "") : "",
+  );
+  const activityIsOther = activityUndertaken === OTHER_VALUE;
+  const resolvedActivity = activityIsOther ? activityOtherText : activityUndertaken;
+
   const [girlsReached, setGirlsReached] = useState(initialGirlsReached?.toString() ?? "");
+  const [totalStudents, setTotalStudents] = useState(initialTotalStudents?.toString() ?? "");
+  const [driveLink, setDriveLink] = useState(initialDriveLink ?? "");
   const [completionRemarks, setCompletionRemarks] = useState("");
 
   function submit() {
@@ -55,8 +80,10 @@ export function MoveToExecutionDialog({
       try {
         await onConfirm({
           executedDate,
-          activityUndertaken: activityUndertaken || undefined,
+          activityUndertaken: resolvedActivity || undefined,
           girlsReached: girlsReached ? Number(girlsReached) : undefined,
+          totalStudents: totalStudents ? Number(totalStudents) : undefined,
+          driveLink: driveLink || undefined,
           completionRemarks: completionRemarks || undefined,
         });
         toast.success("Marked as executed — completed");
@@ -87,20 +114,62 @@ export function MoveToExecutionDialog({
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="move_activity_undertaken">Activity undertaken</Label>
-            <Input
-              id="move_activity_undertaken"
-              value={activityUndertaken}
-              onChange={(e) => setActivityUndertaken(e.target.value)}
-              placeholder="Awareness session conducted…"
-            />
+            <Select value={activityUndertaken} onValueChange={(v) => setActivityUndertaken(v ?? "")}>
+              <SelectTrigger id="move_activity_undertaken">
+                <SelectValue>
+                  {(value: string) => {
+                    if (!value) return "Select activity";
+                    return value === OTHER_VALUE ? "Other (specify)" : value;
+                  }}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {OUTREACH_ACTIVITIES.map((a) => (
+                  <SelectItem key={a} value={a}>
+                    {a}
+                  </SelectItem>
+                ))}
+                <SelectItem value={OTHER_VALUE}>Other (specify)</SelectItem>
+              </SelectContent>
+            </Select>
+            {activityIsOther && (
+              <Input
+                value={activityOtherText}
+                onChange={(e) => setActivityOtherText(e.target.value)}
+                placeholder="Specify…"
+              />
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="move_total_students">Total students</Label>
+              <Input
+                id="move_total_students"
+                type="number"
+                inputMode="numeric"
+                value={totalStudents}
+                onChange={(e) => setTotalStudents(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="move_girls_reached">Girls reached</Label>
+              <Input
+                id="move_girls_reached"
+                type="number"
+                inputMode="numeric"
+                value={girlsReached}
+                onChange={(e) => setGirlsReached(e.target.value)}
+              />
+            </div>
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="move_girls_reached">Girls reached</Label>
+            <Label htmlFor="move_drive_link">Google Drive link</Label>
             <Input
-              id="move_girls_reached"
-              type="number"
-              value={girlsReached}
-              onChange={(e) => setGirlsReached(e.target.value)}
+              id="move_drive_link"
+              type="url"
+              value={driveLink}
+              onChange={(e) => setDriveLink(e.target.value)}
+              placeholder="Link to session photos/evidence…"
             />
           </div>
           <div className="flex flex-col gap-2">

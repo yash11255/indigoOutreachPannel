@@ -30,6 +30,21 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+function DriveLinkField({ value }: { value: string | null }) {
+  return (
+    <Field
+      label="Drive link"
+      value={
+        value ? (
+          <a href={value} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+            View photos
+          </a>
+        ) : null
+      }
+    />
+  );
+}
+
 export default async function LeadDetailPage({
   params,
 }: {
@@ -54,8 +69,6 @@ export default async function LeadDetailPage({
   const aspirational = await getAspirationalStatus(lead.state, lead.district_city);
   const teamName = teams.find((t) => t.id === lead.team_id)?.name ?? "—";
   const timeline = buildLeadTimeline(lead, rounds);
-  const latestRound = rounds[rounds.length - 1];
-  const canAddRound = !latestRound ? !!lead.executed_date : !!latestRound.executed_date;
   // The step currently in progress (no executed date yet) — updates can only be logged against it.
   const activeStep = timeline.find((s) => !s.executedDate);
 
@@ -92,6 +105,8 @@ export default async function LeadDetailPage({
               title={lead.institution_name}
               initialActivityUndertaken={lead.activity_undertaken}
               initialGirlsReached={lead.girls_reached}
+              initialTotalStudents={lead.no_of_institutions}
+              initialDriveLink={lead.drive_link}
               onConfirm={markLeadExecuted.bind(null, lead.id)}
               trigger={<Button>Mark as executed</Button>}
             />
@@ -117,16 +132,14 @@ export default async function LeadDetailPage({
                   }
                 />
               )}
-              {canAddRound && (
-                <AddRoundDialog
-                  leadId={lead.id}
-                  trigger={
-                    <Button size="sm" variant="outline">
-                      Add another round
-                    </Button>
-                  }
-                />
-              )}
+              <AddRoundDialog
+                leadId={lead.id}
+                trigger={
+                  <Button size="sm" variant="outline">
+                    Add another round
+                  </Button>
+                }
+              />
             </div>
           </div>
           <LeadTimeline steps={timeline} />
@@ -205,6 +218,7 @@ export default async function LeadDetailPage({
               label="Interest forms submitted"
               value={lead.quick_interest_form_submitted}
             />
+            <DriveLinkField value={lead.drive_link} />
           </CardContent>
         </Card>
       </div>
@@ -223,6 +237,8 @@ export default async function LeadDetailPage({
                     title={`Round ${round.sequence_no}`}
                     initialActivityUndertaken={round.activity_undertaken}
                     initialGirlsReached={round.girls_reached}
+                    initialTotalStudents={round.no_of_institutions}
+                    initialDriveLink={round.drive_link}
                     onConfirm={markRoundExecuted.bind(null, round.id, lead.id)}
                     trigger={
                       <Button size="sm" variant="outline">
@@ -233,11 +249,13 @@ export default async function LeadDetailPage({
                 )}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
               <Field label="Planned date" value={round.planned_date} />
+              <Field label="Total students" value={round.no_of_institutions} />
               <Field label="Executed date" value={round.executed_date} />
               <Field label="Activity undertaken" value={round.activity_undertaken} />
               <Field label="Girls reached" value={round.girls_reached} />
+              <DriveLinkField value={round.drive_link} />
             </div>
           </CardContent>
         </Card>

@@ -29,6 +29,7 @@ export function AddRoundDialog({ leadId, trigger }: { leadId: string; trigger: R
   const [activity, setActivity] = useState("");
   const [activityOtherText, setActivityOtherText] = useState("");
   const [plannedDate, setPlannedDate] = useState("");
+  const [totalStudents, setTotalStudents] = useState("");
 
   const activityIsOther = activity === OTHER_VALUE;
   const resolvedActivity = activityIsOther ? activityOtherText : activity;
@@ -40,12 +41,18 @@ export function AddRoundDialog({ leadId, trigger }: { leadId: string; trigger: R
     }
     startTransition(async () => {
       try {
-        await createLeadRound({ leadId, title: resolvedActivity || undefined, plannedDate });
+        await createLeadRound({
+          leadId,
+          title: resolvedActivity || undefined,
+          plannedDate,
+          totalStudents: totalStudents ? Number(totalStudents) : undefined,
+        });
         toast.success("Round added");
         setOpen(false);
         setActivity("");
         setActivityOtherText("");
         setPlannedDate("");
+        setTotalStudents("");
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to add round");
       }
@@ -96,6 +103,16 @@ export function AddRoundDialog({ leadId, trigger }: { leadId: string; trigger: R
               value={plannedDate}
               onChange={(e) => setPlannedDate(e.target.value)}
               required
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="round_total_students">Total students</Label>
+            <Input
+              id="round_total_students"
+              type="number"
+              inputMode="numeric"
+              value={totalStudents}
+              onChange={(e) => setTotalStudents(e.target.value)}
             />
           </div>
         </div>
