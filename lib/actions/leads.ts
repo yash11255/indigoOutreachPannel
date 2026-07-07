@@ -185,8 +185,19 @@ export async function createLeadRound(input: {
 
   if (error) throw new Error(error.message);
 
+  // A new round means there's a fresh pending activity — keep the lead's own
+  // `status` (what Kanban/admin stats key off) in sync so it moves back out
+  // of "Completed" now that the pipeline isn't actually finished anymore.
+  const { error: leadError } = await supabase
+    .from("leads")
+    .update({ status: "Planned" })
+    .eq("id", input.leadId);
+  if (leadError) throw new Error(leadError.message);
+
   revalidatePath(`/leads/${input.leadId}`);
+  revalidatePath("/leads");
   revalidatePath("/calendar");
+  revalidatePath("/admin");
 }
 
 /** Same as markLeadExecuted, but for a specific round rather than the lead itself. */
@@ -213,8 +224,19 @@ export async function markRoundExecuted(
 
   if (error) throw new Error(error.message);
 
+  // Mirror onto the parent lead: Kanban/admin stats key off `leads.status`
+  // directly (they don't look at lead_rounds), so without this a lead whose
+  // *later* round finished would never show up as Completed anywhere.
+  const { error: leadError } = await supabase
+    .from("leads")
+    .update({ status: "Activity Completed" })
+    .eq("id", leadId);
+  if (leadError) throw new Error(leadError.message);
+
   revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/leads");
   revalidatePath("/calendar");
+  revalidatePath("/admin");
 }
 
 /**

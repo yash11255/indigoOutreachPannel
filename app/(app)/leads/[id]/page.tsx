@@ -191,7 +191,7 @@ export default async function LeadDetailPage({
             <h2 className="text-sm font-semibold text-neutral-700">Round 1 — Planned</h2>
             <Field label="Planned activity" value={lead.planned_activity} />
             <Field label="Planned date" value={lead.planned_date} />
-            <Field label="No. of institutions" value={lead.no_of_institutions} />
+            <Field label="Total students" value={lead.no_of_institutions} />
             <Field label="Planned girls reach" value={lead.planned_girls_reach} />
           </CardContent>
         </Card>

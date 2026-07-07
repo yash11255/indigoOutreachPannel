@@ -16,7 +16,7 @@ export async function getStatuses(): Promise<StatusLookup[]> {
 
 export async function getRegionsStates(): Promise<RegionState[]> {
   const supabase = await createClient();
-  const { data } = await supabase.from("regions_states").select("*").order("region");
+  const { data } = await supabase.from("regions_states").select("*").order("region").order("state");
   return data ?? [];
 }
 
@@ -29,7 +29,7 @@ export async function getInstitutionTypes(): Promise<InstitutionType[]> {
 /** Full district reference list (780 rows) — small enough to fetch once and filter by state client-side. */
 export async function getDistrictsMaster(): Promise<DistrictMaster[]> {
   const supabase = await createClient();
-  const { data } = await supabase.from("districts_master").select("*").order("state");
+  const { data } = await supabase.from("districts_master").select("*").order("state").order("district");
   return data ?? [];
 }
 

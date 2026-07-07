@@ -310,7 +310,7 @@ export function LeadFormDialog({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="no_of_institutions">No. of institutions</Label>
+            <Label htmlFor="no_of_institutions">Total students</Label>
             <Input id="no_of_institutions" name="no_of_institutions" type="number" inputMode="numeric" defaultValue={lead?.no_of_institutions ?? ""} />
           </div>
           <div className="flex flex-col gap-2">
@@ -350,30 +350,32 @@ export function LeadFormDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-4 rounded-md border p-3 sm:col-span-2 sm:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="executed_date">Executed date</Label>
-              <Input id="executed_date" name="executed_date" type="date" defaultValue={lead?.executed_date ?? ""} />
+          {mode === "edit" && (
+            <div className="grid grid-cols-1 gap-4 rounded-md border p-3 sm:col-span-2 sm:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="executed_date">Executed date</Label>
+                <Input id="executed_date" name="executed_date" type="date" defaultValue={lead?.executed_date ?? ""} />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="girls_reached">Girls reached</Label>
+                <Input id="girls_reached" name="girls_reached" type="number" inputMode="numeric" defaultValue={lead?.girls_reached ?? ""} />
+              </div>
+              <div className="flex flex-col gap-2 sm:col-span-2">
+                <Label htmlFor="activity_undertaken">Activity undertaken</Label>
+                <Input id="activity_undertaken" name="activity_undertaken" defaultValue={lead?.activity_undertaken ?? ""} />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="quick_interest_form_submitted">Interest forms submitted</Label>
+                <Input
+                  id="quick_interest_form_submitted"
+                  name="quick_interest_form_submitted"
+                  type="number"
+                  inputMode="numeric"
+                  defaultValue={lead?.quick_interest_form_submitted ?? ""}
+                />
+              </div>
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="girls_reached">Girls reached</Label>
-              <Input id="girls_reached" name="girls_reached" type="number" inputMode="numeric" defaultValue={lead?.girls_reached ?? ""} />
-            </div>
-            <div className="flex flex-col gap-2 sm:col-span-2">
-              <Label htmlFor="activity_undertaken">Activity undertaken</Label>
-              <Input id="activity_undertaken" name="activity_undertaken" defaultValue={lead?.activity_undertaken ?? ""} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="quick_interest_form_submitted">Interest forms submitted</Label>
-              <Input
-                id="quick_interest_form_submitted"
-                name="quick_interest_form_submitted"
-                type="number"
-                inputMode="numeric"
-                defaultValue={lead?.quick_interest_form_submitted ?? ""}
-              />
-            </div>
-          </div>
+          )}
 
           <div className="flex flex-col gap-2 sm:col-span-2">
             <Label htmlFor="remarks">Remarks</Label>
