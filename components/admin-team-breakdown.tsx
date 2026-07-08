@@ -21,7 +21,7 @@ export type TeamBreakdownRow = {
   plannedGirls: number;
   girlsReached: number;
   stages: Record<LeadStage, number>;
-  recent: {
+  leads: {
     id: string;
     institution: string;
     member: string | null;
@@ -41,10 +41,17 @@ function sumRows(rows: TeamBreakdownRow[]) {
   );
 }
 
+function completionPct(completed: number, total: number) {
+  if (total === 0) return 0;
+  return Math.round((completed / total) * 100);
+}
+
+const ACHIEVED_GREEN = "#24a148";
+
 /**
  * Team-wise leads: an all-teams consolidated total up top, then a collapsible
  * per-team breakdown below — a proportional stage bar for scanning at a
- * glance, expandable to that team's most recent leads.
+ * glance, expandable to a scrollable list of every lead on that team.
  */
 export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -56,11 +63,11 @@ export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
   }
 
   const totals = sumRows(rows);
-  const consolidated: { label: string; value: number }[] = [
+  const consolidated: { label: string; value: number; achieved?: boolean }[] = [
     { label: "Total leads (all teams)", value: totals.total },
-    { label: "Completed", value: totals.completed },
+    { label: "Completed", value: totals.completed, achieved: true },
     { label: "Planned girls reach", value: totals.plannedGirls },
-    { label: "Girls reached", value: totals.girlsReached },
+    { label: "Girls reached", value: totals.girlsReached, achieved: true },
   ];
 
   return (
@@ -69,19 +76,45 @@ export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
         {consolidated.map((stat) => (
           <div
             key={stat.label}
-            className="rounded-md border bg-neutral-50 px-3 py-2"
+            className="relative overflow-hidden rounded-md border bg-neutral-50 py-2 pr-3 pl-3.5"
           >
+            {stat.achieved && (
+              <div
+                className="absolute inset-y-0 left-0 w-1"
+                style={{ backgroundColor: ACHIEVED_GREEN }}
+                aria-hidden
+              />
+            )}
             <div className="text-xs text-neutral-500">{stat.label}</div>
             <div className="text-lg font-semibold tabular-nums">
-              {stat.value}
+              {stat.value.toLocaleString("en-IN")}
             </div>
           </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-md border bg-neutral-50 px-3 py-2 text-xs text-neutral-500">
+        <span className="font-medium text-neutral-600">Stage colors:</span>
+        {STAGE_ORDER.map((stage) => (
+          <span
+            key={stage}
+            className="inline-flex items-center gap-1.5 whitespace-nowrap"
+          >
+            <span
+              className="inline-block size-2 shrink-0 rounded-full"
+              style={{ backgroundColor: STAGE_COLOR[stage] }}
+              aria-hidden
+            />
+            {STAGE_LABELS[stage]}
+          </span>
         ))}
       </div>
 
       <div className="flex flex-col gap-2">
         {rows.map((row) => {
           const isOpen = openId === row.teamId;
+          const pct = completionPct(row.completed, row.total);
+          const isFullyDone = row.total > 0 && row.completed === row.total;
           return (
             <div key={row.teamId} className="rounded-md border">
               <button
@@ -92,11 +125,18 @@ export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
               >
                 <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
                   <span className="truncate font-semibold">{row.teamName}</span>
-                  <span className="whitespace-nowrap text-xs text-neutral-400">
+                  <span className="whitespace-nowrap text-xs text-neutral-500">
                     {row.total} lead{row.total === 1 ? "" : "s"}
                   </span>
-                  <span className="whitespace-nowrap text-xs text-neutral-400">
-                    · {row.completed} completed
+                  <span
+                    className={`whitespace-nowrap text-xs ${
+                      isFullyDone
+                        ? "font-medium text-[#0e6027]"
+                        : "text-neutral-500"
+                    }`}
+                  >
+                    · {isFullyDone ? "✓ " : ""}
+                    {pct}% complete
                   </span>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
@@ -144,8 +184,8 @@ export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
                       </span>
                     </div>
                   </div>
-                  <div className="flex flex-col">
-                    {row.recent.map((r) => (
+                  <div className="flex max-h-80 flex-col overflow-y-auto">
+                    {row.leads.map((r) => (
                       <Link
                         key={r.id}
                         href={`/leads/${r.id}`}
@@ -162,12 +202,6 @@ export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
                         <StatusBadge status={r.status} />
                       </Link>
                     ))}
-                    {row.total > row.recent.length && (
-                      <div className="border-t px-4 py-2 text-xs text-neutral-400">
-                        + {row.total - row.recent.length} more — see the Leads
-                        page
-                      </div>
-                    )}
                   </div>
                 </div>
               )}
