@@ -1,16 +1,31 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Lead, LeadRound, LeadUpdate } from "@/lib/types";
 
+/** PostgREST caps a single response at 1000 rows by default — page through in batches so callers always get every matching row, not just the first 1000. */
+const PAGE_SIZE = 1000;
+
 export async function getLeads(filters?: { teamId?: string; status?: string }): Promise<Lead[]> {
   const supabase = await createClient();
-  let query = supabase.from("leads").select("*").order("planned_date", { ascending: true, nullsFirst: false });
+  const all: Lead[] = [];
+  let from = 0;
 
-  if (filters?.teamId) query = query.eq("team_id", filters.teamId);
-  if (filters?.status) query = query.eq("status", filters.status);
+  while (true) {
+    let query = supabase
+      .from("leads")
+      .select("*")
+      .order("planned_date", { ascending: true, nullsFirst: false })
+      .range(from, from + PAGE_SIZE - 1);
+    if (filters?.teamId) query = query.eq("team_id", filters.teamId);
+    if (filters?.status) query = query.eq("status", filters.status);
 
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-  return data ?? [];
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    all.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  return all;
 }
 
 export async function getLead(id: string): Promise<Lead | null> {
@@ -52,32 +67,50 @@ export async function getLeadUpdates(leadId: string): Promise<LeadUpdate[]> {
 export async function getDueLeads(filters?: { teamId?: string }): Promise<Lead[]> {
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
-  let query = supabase
-    .from("leads")
-    .select("*")
-    .lte("planned_date", today)
-    .is("executed_date", null)
-    .order("planned_date", { ascending: true });
+  const all: Lead[] = [];
+  let from = 0;
 
-  if (filters?.teamId) query = query.eq("team_id", filters.teamId);
+  while (true) {
+    let query = supabase
+      .from("leads")
+      .select("*")
+      .lte("planned_date", today)
+      .is("executed_date", null)
+      .order("planned_date", { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+    if (filters?.teamId) query = query.eq("team_id", filters.teamId);
 
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-  return data ?? [];
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    all.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  return all;
 }
 
 /** Upcoming leads by planned_date or executed_date, for the calendar view. */
 export async function getUpcomingLeads(filters?: { teamId?: string }): Promise<Lead[]> {
   const supabase = await createClient();
-  let query = supabase
-    .from("leads")
-    .select("*")
-    .or("planned_date.not.is.null,executed_date.not.is.null")
-    .order("planned_date", { ascending: true, nullsFirst: false });
+  const all: Lead[] = [];
+  let from = 0;
 
-  if (filters?.teamId) query = query.eq("team_id", filters.teamId);
+  while (true) {
+    let query = supabase
+      .from("leads")
+      .select("*")
+      .or("planned_date.not.is.null,executed_date.not.is.null")
+      .order("planned_date", { ascending: true, nullsFirst: false })
+      .range(from, from + PAGE_SIZE - 1);
+    if (filters?.teamId) query = query.eq("team_id", filters.teamId);
 
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-  return data ?? [];
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    all.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  return all;
 }

@@ -11,7 +11,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { IndiaMap } from "@/components/india-map";
-import { STAGE_LABELS, STAGE_ORDER, stageForStatus } from "@/lib/types";
+import { AdminTeamBreakdown, type TeamBreakdownRow } from "@/components/admin-team-breakdown";
+import { Button } from "@/components/ui/button";
+import { STAGE_LABELS, STAGE_ORDER, stageForStatus, type LeadStage } from "@/lib/types";
 
 function sum(nums: (number | null)[]) {
   return nums.reduce<number>((acc, n) => acc + (n ?? 0), 0);
@@ -36,6 +38,43 @@ export default async function AdminPage() {
       girlsReached: sum(teamLeads.map((l) => l.girls_reached)),
     };
   });
+
+  const emptyStages = (): Record<LeadStage, number> => ({
+    planned: 0,
+    outreach_sent: 0,
+    scheduled: 0,
+    completed: 0,
+    stalled: 0,
+  });
+
+  const teamActivity: TeamBreakdownRow[] = byTeam
+    .filter((row) => row.total > 0)
+    .map((row) => {
+      const teamLeads = leads.filter((l) => l.team_id === row.team.id);
+      const stages = emptyStages();
+      for (const l of teamLeads) stages[stageForStatus(l.status)] += 1;
+      const recent = teamLeads
+        .slice()
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .slice(0, 5)
+        .map((l) => ({
+          id: l.id,
+          institution: l.institution_name,
+          member: l.responsible_member,
+          status: l.status,
+        }));
+      return {
+        teamId: row.team.id,
+        teamName: row.team.name,
+        total: row.total,
+        completed: row.completed,
+        plannedGirls: row.plannedGirls,
+        girlsReached: row.girlsReached,
+        stages,
+        recent,
+      };
+    })
+    .sort((a, b) => b.total - a.total);
 
   const regionMap = new Map<string, { total: number; completed: number }>();
   for (const l of leads) {
@@ -79,9 +118,14 @@ export default async function AdminPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold">Admin dashboard</h1>
-        <p className="text-sm text-neutral-500">Cross-team view of the full outreach pipeline.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Admin dashboard</h1>
+          <p className="text-sm text-neutral-500">Cross-team view of the full outreach pipeline.</p>
+        </div>
+        <Button variant="outline" render={<a href="/admin/export" download />}>
+          Download Excel
+        </Button>
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
@@ -124,6 +168,15 @@ export default async function AdminPage() {
               ))}
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Team activity</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <AdminTeamBreakdown rows={teamActivity} />
         </CardContent>
       </Card>
 
