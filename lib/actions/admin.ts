@@ -73,12 +73,18 @@ export async function updateMember(formData: FormData) {
   const userId = String(formData.get("user_id") ?? "");
   const teamId = String(formData.get("team_id") ?? "").trim();
   const role = String(formData.get("role") ?? "member").trim();
+  const managerId = String(formData.get("manager_id") ?? "").trim();
   if (!userId) throw new Error("Missing user id");
+  if (managerId === userId) throw new Error("A person can't be their own manager.");
 
   const supabase = await createClient();
   const { error } = await supabase
     .from("profiles")
-    .update({ role, team_id: role === "admin" ? null : teamId || null })
+    .update({
+      role,
+      team_id: role === "admin" ? null : teamId || null,
+      manager_id: managerId || null,
+    })
     .eq("id", userId);
 
   if (error) throw new Error(error.message);

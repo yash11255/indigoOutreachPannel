@@ -8,10 +8,8 @@ export default async function CalendarPage() {
   const profile = await requireProfile();
   const isAdmin = profile.role === "admin";
 
-  const [leads, teams] = await Promise.all([
-    getUpcomingLeads(isAdmin ? undefined : { teamId: profile.team_id ?? undefined }),
-    getTeams(),
-  ]);
+  // No team filter: RLS scopes rows to what this profile can see already.
+  const [leads, teams] = await Promise.all([getUpcomingLeads(), getTeams()]);
 
   const events: CalEvent[] = [];
   for (const lead of leads) {
@@ -25,7 +23,7 @@ export default async function CalendarPage() {
       <div>
         <h1 className="text-xl font-semibold">Calendar</h1>
         <p className="text-sm text-neutral-500">
-          Every lead&apos;s planned and executed dates, across {isAdmin ? "all teams" : "your team"}.
+          Every lead&apos;s planned and executed dates, across {isAdmin ? "all teams" : "your leads"}.
         </p>
       </div>
       <CalendarView events={events} teams={teams} isAdmin={isAdmin} />

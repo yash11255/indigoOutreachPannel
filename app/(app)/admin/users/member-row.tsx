@@ -14,9 +14,20 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 
-export function MemberRow({ profile, teams }: { profile: Profile; teams: Team[] }) {
+const NO_MANAGER = "__none__";
+
+export function MemberRow({
+  profile,
+  teams,
+  allProfiles,
+}: {
+  profile: Profile;
+  teams: Team[];
+  allProfiles: Profile[];
+}) {
   const [role, setRole] = useState(profile.role);
   const [teamId, setTeamId] = useState(profile.team_id ?? "");
+  const [managerId, setManagerId] = useState(profile.manager_id ?? "");
   const [pending, startTransition] = useTransition();
 
   function save() {
@@ -24,6 +35,7 @@ export function MemberRow({ profile, teams }: { profile: Profile; teams: Team[] 
     fd.set("user_id", profile.id);
     fd.set("role", role);
     fd.set("team_id", teamId);
+    fd.set("manager_id", managerId);
     startTransition(async () => {
       try {
         await updateMember(fd);
@@ -34,7 +46,14 @@ export function MemberRow({ profile, teams }: { profile: Profile; teams: Team[] 
     });
   }
 
-  const dirty = role !== profile.role || teamId !== (profile.team_id ?? "");
+  const dirty =
+    role !== profile.role ||
+    teamId !== (profile.team_id ?? "") ||
+    managerId !== (profile.manager_id ?? "");
+
+  const managerCandidates = allProfiles
+    .filter((p) => p.id !== profile.id)
+    .sort((a, b) => (a.full_name ?? a.email).localeCompare(b.full_name ?? b.email));
 
   return (
     <TableRow>
@@ -70,6 +89,30 @@ export function MemberRow({ profile, teams }: { profile: Profile; teams: Team[] 
         ) : (
           <span className="text-sm text-neutral-400">All teams</span>
         )}
+      </TableCell>
+      <TableCell>
+        <Select
+          value={managerId || NO_MANAGER}
+          onValueChange={(v) => setManagerId(!v || v === NO_MANAGER ? "" : v)}
+        >
+          <SelectTrigger className="w-48">
+            <SelectValue>
+              {(value: string) => {
+                if (!value || value === NO_MANAGER) return "No manager";
+                const m = allProfiles.find((p) => p.id === value);
+                return m ? (m.full_name ?? m.email) : "No manager";
+              }}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_MANAGER}>No manager</SelectItem>
+            {managerCandidates.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.full_name ?? p.email}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </TableCell>
       <TableCell className="text-right">
         <Button size="sm" onClick={save} disabled={!dirty || pending}>

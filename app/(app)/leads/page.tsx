@@ -7,11 +7,13 @@ import { LeadsView } from "./leads-view";
 export default async function LeadsPage() {
   const profile = await requireProfile();
   const isAdmin = profile.role === "admin";
-  const teamFilter = isAdmin ? undefined : { teamId: profile.team_id ?? undefined };
 
+  // No team-based filter here: RLS already scopes rows to what this profile
+  // is allowed to see (their own leads, plus their direct reports' if
+  // they're someone's manager; everything for admins).
   const [leads, dueLeads, teams, statuses, regionsStates, districtsMaster] = await Promise.all([
-    getLeads(teamFilter),
-    getDueLeads(teamFilter),
+    getLeads(),
+    getDueLeads(),
     getTeams(),
     getStatuses(),
     getRegionsStates(),
@@ -22,7 +24,7 @@ export default async function LeadsPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-semibold">
-          {isAdmin ? "All leads" : "Your team's leads"}
+          {isAdmin ? "All leads" : "Your leads"}
         </h1>
         <p className="text-sm text-neutral-500">
           Create a lead with a planned date, then move it to execution once the activity happens.

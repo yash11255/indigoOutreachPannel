@@ -45,6 +45,7 @@ export function LeadsTable({
               <StatusBadge status={lead.status} />
             </div>
             <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-neutral-500">
+              <span>{lead.responsible_member || "—"}</span>
               {showTeamColumn && <span>{teamName(lead.team_id)}</span>}
               <span>{[lead.region, lead.state].filter(Boolean).join(" / ") || "—"}</span>
               <span>Planned {lead.planned_date ?? "—"}</span>
@@ -59,6 +60,7 @@ export function LeadsTable({
         <TableHeader>
           <TableRow>
             <TableHead>Institution</TableHead>
+            <TableHead>By</TableHead>
             {showTeamColumn && <TableHead>Team</TableHead>}
             <TableHead>Region / State</TableHead>
             <TableHead>Planned date</TableHead>
@@ -76,6 +78,7 @@ export function LeadsTable({
                   {lead.institution_name}
                 </Link>
               </TableCell>
+              <TableCell className="text-sm text-neutral-500">{lead.responsible_member || "—"}</TableCell>
               {showTeamColumn && <TableCell>{teamName(lead.team_id)}</TableCell>}
               <TableCell>
                 {[lead.region, lead.state].filter(Boolean).join(" / ") || "—"}

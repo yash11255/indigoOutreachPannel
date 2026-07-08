@@ -40,12 +40,13 @@ export default async function AdminUsersPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Team</TableHead>
+                <TableHead>Manager</TableHead>
                 <TableHead className="text-right">Save</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {profiles.map((p) => (
-                <MemberRow key={p.id} profile={p} teams={teams} />
+                <MemberRow key={p.id} profile={p} teams={teams} allProfiles={profiles} />
               ))}
             </TableBody>
           </Table>

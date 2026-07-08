@@ -6,6 +6,8 @@ export type Profile = {
   full_name: string | null;
   role: Role;
   team_id: string | null;
+  /** This person's reporting manager, if set — that manager can see leads this person created, in addition to their own. */
+  manager_id: string | null;
   created_at: string;
 };
 

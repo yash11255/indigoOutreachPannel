@@ -41,6 +41,7 @@ export function LeadsKanban({
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="flex flex-col gap-2 px-3 text-xs text-neutral-600">
+                    <div>{lead.responsible_member || "—"}</div>
                     {showTeamLabel && <div>{teamName(lead.team_id)}</div>}
                     <div>{[lead.region, lead.state].filter(Boolean).join(" / ") || "—"}</div>
                     <div>Planned: {lead.planned_date ?? "—"}</div>
