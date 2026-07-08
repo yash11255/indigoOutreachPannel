@@ -15,9 +15,15 @@ import { CancelActivityDialog } from "@/components/cancel-activity-dialog";
 import { RescheduleDialog } from "@/components/reschedule-dialog";
 import { AddRoundDialog } from "@/components/add-round-dialog";
 import { AddUpdateDialog } from "@/components/add-update-dialog";
+import { EditRoundDialog } from "@/components/edit-round-dialog";
 import { LeadTimeline } from "@/components/lead-timeline";
 import { DeleteLeadButton } from "@/components/delete-lead-button";
-import { markLeadExecuted, markRoundExecuted, cancelLead, cancelRound } from "@/lib/actions/leads";
+import {
+  markLeadExecuted,
+  markRoundExecuted,
+  cancelLead,
+  cancelRound,
+} from "@/lib/actions/leads";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,7 +32,9 @@ import { buildLeadTimeline, stageForStatus } from "@/lib/types";
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-wide text-neutral-400">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-neutral-400">
+        {label}
+      </div>
       <div className="text-sm">{value ?? "—"}</div>
     </div>
   );
@@ -38,7 +46,12 @@ function DriveLinkField({ value }: { value: string | null }) {
       label="Drive link"
       value={
         value ? (
-          <a href={value} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+          <a
+            href={value}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:underline"
+          >
             View photos
           </a>
         ) : null
@@ -56,7 +69,15 @@ export default async function LeadDetailPage({
   const profile = await requireProfile();
   const isAdmin = profile.role === "admin";
 
-  const [lead, rounds, updates, teams, statuses, regionsStates, districtsMaster] = await Promise.all([
+  const [
+    lead,
+    rounds,
+    updates,
+    teams,
+    statuses,
+    regionsStates,
+    districtsMaster,
+  ] = await Promise.all([
     getLead(id),
     getLeadRounds(id),
     getLeadUpdates(id),
@@ -68,13 +89,19 @@ export default async function LeadDetailPage({
 
   if (!lead) notFound();
 
-  const aspirational = await getAspirationalStatus(lead.state, lead.district_city);
+  const aspirational = await getAspirationalStatus(
+    lead.state,
+    lead.district_city,
+  );
   const teamName = teams.find((t) => t.id === lead.team_id)?.name ?? "—";
   const timeline = buildLeadTimeline(lead, rounds);
   // The step currently in progress: no executed date yet, and not already
   // cancelled — updates can only be logged against a step still genuinely open.
-  const activeStep = timeline.find((s) => !s.executedDate && stageForStatus(s.status) !== "stalled");
-  const lead1Resolved = !!lead.executed_date || stageForStatus(lead.status) === "stalled";
+  const activeStep = timeline.find(
+    (s) => !s.executedDate && stageForStatus(s.status) !== "stalled",
+  );
+  const lead1Resolved =
+    !!lead.executed_date || stageForStatus(lead.status) === "stalled";
 
   return (
     <div className="flex flex-col gap-6">
@@ -85,7 +112,10 @@ export default async function LeadDetailPage({
             <StatusBadge status={lead.status} />
             <StageBadge status={lead.status} />
             {aspirational?.is_aspirational && (
-              <Badge variant="outline" className="border-[#8a3ffc] bg-[#f6f2ff] text-[#6929c4]">
+              <Badge
+                variant="outline"
+                className="border-[#8a3ffc] bg-[#f6f2ff] text-[#6929c4]"
+              >
                 Aspirational District ({aspirational.district})
               </Badge>
             )}
@@ -241,77 +271,121 @@ export default async function LeadDetailPage({
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <Field label="Planned date" value={lead.planned_date} />
             <Field label="Total students" value={lead.no_of_institutions} />
-            <Field label="Planned girls reach" value={lead.planned_girls_reach} />
+            <Field
+              label="Planned girls reach"
+              value={lead.planned_girls_reach}
+            />
             <Field label="Executed date" value={lead.executed_date} />
-            <Field label="Activity undertaken" value={lead.activity_undertaken} />
+            <Field
+              label="Activity undertaken"
+              value={lead.activity_undertaken}
+            />
             <Field label="Girls reached" value={lead.girls_reached} />
-            <Field label="Interest forms submitted" value={lead.quick_interest_form_submitted} />
+            <Field
+              label="Interest forms submitted"
+              value={lead.quick_interest_form_submitted}
+            />
             <DriveLinkField value={lead.drive_link} />
           </div>
         </CardContent>
       </Card>
 
       {rounds.map((round) => {
-        const roundResolved = !!round.executed_date || stageForStatus(round.status) === "stalled";
+        const roundResolved =
+          !!round.executed_date || stageForStatus(round.status) === "stalled";
         return (
-        <Card key={round.id}>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-sm font-semibold text-neutral-700">
-                Round {round.sequence_no} — {round.title || "Untitled"}
-              </h2>
-              <div className="flex flex-wrap items-center gap-2">
-                <StatusBadge status={round.status} />
-                {!roundResolved && (
-                  <>
-                    <RescheduleDialog
-                      leadId={lead.id}
-                      roundId={round.id}
-                      currentPlannedDate={round.planned_date}
-                      title={`Round ${round.sequence_no}`}
-                      trigger={
-                        <Button size="sm" variant="outline">
-                          Reschedule
-                        </Button>
-                      }
-                    />
-                    <MoveToExecutionDialog
-                      title={`Round ${round.sequence_no}`}
-                      initialActivityUndertaken={round.activity_undertaken}
-                      initialGirlsReached={round.girls_reached}
-                      initialTotalStudents={round.no_of_institutions}
-                      initialDriveLink={round.drive_link}
-                      onConfirm={markRoundExecuted.bind(null, round.id, lead.id)}
-                      trigger={
-                        <Button size="sm" variant="outline">
-                          Mark as executed
-                        </Button>
-                      }
-                    />
-                    <CancelActivityDialog
-                      title={`Round ${round.sequence_no}`}
-                      onConfirm={cancelRound.bind(null, round.id, lead.id)}
-                      trigger={
-                        <Button size="sm" variant="outline">
-                          Cancel
-                        </Button>
-                      }
-                    />
-                  </>
-                )}
+          <Card key={round.id}>
+            <CardContent className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="text-sm font-semibold text-neutral-700">
+                  Round {round.sequence_no} — {round.title || "Untitled"}
+                </h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge status={round.status} />
+                  {!roundResolved && (
+                    <>
+                      <RescheduleDialog
+                        leadId={lead.id}
+                        roundId={round.id}
+                        currentPlannedDate={round.planned_date}
+                        title={`Round ${round.sequence_no}`}
+                        trigger={
+                          <Button size="sm" variant="outline">
+                            Reschedule
+                          </Button>
+                        }
+                      />
+                      <MoveToExecutionDialog
+                        title={`Round ${round.sequence_no}`}
+                        initialActivityUndertaken={round.activity_undertaken}
+                        initialGirlsReached={round.girls_reached}
+                        initialTotalStudents={round.no_of_institutions}
+                        initialDriveLink={round.drive_link}
+                        onConfirm={markRoundExecuted.bind(
+                          null,
+                          round.id,
+                          lead.id,
+                        )}
+                        trigger={
+                          <Button size="sm" variant="outline">
+                            Mark as executed
+                          </Button>
+                        }
+                      />
+                      <CancelActivityDialog
+                        title={`Round ${round.sequence_no}`}
+                        onConfirm={cancelRound.bind(null, round.id, lead.id)}
+                        trigger={
+                          <Button size="sm" variant="outline">
+                            Cancel
+                          </Button>
+                        }
+                      />
+                    </>
+                  )}
+                  <EditRoundDialog
+                    roundId={round.id}
+                    leadId={lead.id}
+                    title={`Round ${round.sequence_no}`}
+                    statuses={statuses}
+                    initial={{
+                      title: round.title,
+                      status: round.status,
+                      plannedDate: round.planned_date,
+                      executedDate: round.executed_date,
+                      totalStudents: round.no_of_institutions,
+                      plannedGirlsReach: round.planned_girls_reach,
+                      girlsReached: round.girls_reached,
+                      activityUndertaken: round.activity_undertaken,
+                      driveLink: round.drive_link,
+                      remarks: round.remarks,
+                    }}
+                    trigger={
+                      <Button size="sm" variant="outline">
+                        Edit
+                      </Button>
+                    }
+                  />
+                </div>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <Field label="Planned date" value={round.planned_date} />
-              <Field label="Total students" value={round.no_of_institutions} />
-              <Field label="Total girls" value={round.planned_girls_reach} />
-              <Field label="Executed date" value={round.executed_date} />
-              <Field label="Activity undertaken" value={round.activity_undertaken} />
-              <Field label="Girls reached" value={round.girls_reached} />
-              <DriveLinkField value={round.drive_link} />
-            </div>
-          </CardContent>
-        </Card>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                <Field label="Planned date" value={round.planned_date} />
+                <Field
+                  label="Total students"
+                  value={round.no_of_institutions}
+                />
+                <Field label="Total girls" value={round.planned_girls_reach} />
+                <Field label="Executed date" value={round.executed_date} />
+                <Field
+                  label="Activity undertaken"
+                  value={round.activity_undertaken}
+                />
+                <Field label="Girls reached" value={round.girls_reached} />
+                <DriveLinkField value={round.drive_link} />
+                <Field label="Remarks" value={round.remarks} />
+              </div>
+            </CardContent>
+          </Card>
         );
       })}
 

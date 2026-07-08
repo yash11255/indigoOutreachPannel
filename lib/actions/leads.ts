@@ -29,9 +29,15 @@ async function appendRemarks(
   addition: string,
   label: string = "Completed",
 ): Promise<string> {
-  const { data } = await supabase.from(table).select("remarks").eq("id", id).single();
+  const { data } = await supabase
+    .from(table)
+    .select("remarks")
+    .eq("id", id)
+    .single();
   const existing = data?.remarks?.trim();
-  return existing ? `${existing} | ${label}: ${addition}` : `${label}: ${addition}`;
+  return existing
+    ? `${existing} | ${label}: ${addition}`
+    : `${label}: ${addition}`;
 }
 
 /**
@@ -47,7 +53,10 @@ async function allRoundsDone(
   round1ExecutedDate: string | null,
 ): Promise<boolean> {
   if (!round1ExecutedDate) return false;
-  const { data } = await supabase.from("lead_rounds").select("executed_date").eq("lead_id", leadId);
+  const { data } = await supabase
+    .from("lead_rounds")
+    .select("executed_date")
+    .eq("lead_id", leadId);
   return (data ?? []).every((r) => !!r.executed_date);
 }
 
@@ -89,19 +98,24 @@ export async function createLead(
   const supabase = await createClient();
 
   const teamId =
-    profile.role === "admin" ? str(formData, "team_id") ?? profile.team_id : profile.team_id;
+    profile.role === "admin"
+      ? (str(formData, "team_id") ?? profile.team_id)
+      : profile.team_id;
 
   if (!teamId) return { error: "No team selected." };
 
   const fields = leadFieldsFromForm(formData);
-  if (!fields.institution_name) return { error: "Institution name is required." };
+  if (!fields.institution_name)
+    return { error: "Institution name is required." };
   if (!fields.planned_date) return { error: "Planned date is required." };
 
   // Members always show up as the responsible member for their own leads —
   // fetched from their profile, not typed in. Admins (who may be creating on
   // behalf of any team) keep manual control over this field.
   const responsibleMember =
-    profile.role === "admin" ? fields.responsible_member : profile.full_name || profile.email;
+    profile.role === "admin"
+      ? fields.responsible_member
+      : profile.full_name || profile.email;
 
   const { error } = await supabase.from("leads").insert({
     ...fields,
@@ -127,9 +141,13 @@ export async function updateLead(
   const supabase = await createClient();
 
   const fields = leadFieldsFromForm(formData);
-  if (!fields.institution_name) return { error: "Institution name is required." };
+  if (!fields.institution_name)
+    return { error: "Institution name is required." };
 
-  const { error } = await supabase.from("leads").update(fields).eq("id", leadId);
+  const { error } = await supabase
+    .from("leads")
+    .update(fields)
+    .eq("id", leadId);
   if (error) return { error: error.message };
 
   revalidatePath("/leads");
@@ -159,7 +177,10 @@ export type MarkExecutedInput = {
  * plain closure wrapping a server action can't cross that boundary, but a
  * bound reference to the action itself can.
  */
-export async function markLeadExecuted(leadId: string, input: MarkExecutedInput) {
+export async function markLeadExecuted(
+  leadId: string,
+  input: MarkExecutedInput,
+) {
   await requireProfileForAction();
   const supabase = await createClient();
 
@@ -177,7 +198,16 @@ export async function markLeadExecuted(leadId: string, input: MarkExecutedInput)
       girls_reached: input.girlsReached ?? null,
       no_of_institutions: input.totalStudents ?? null,
       drive_link: input.driveLink ?? null,
-      ...(input.completionRemarks ? { remarks: await appendRemarks(supabase, "leads", leadId, input.completionRemarks) } : {}),
+      ...(input.completionRemarks
+        ? {
+            remarks: await appendRemarks(
+              supabase,
+              "leads",
+              leadId,
+              input.completionRemarks,
+            ),
+          }
+        : {}),
     })
     .eq("id", leadId);
 
@@ -203,7 +233,17 @@ export async function cancelLead(leadId: string, input: CancelInput) {
     .from("leads")
     .update({
       status: input.status,
-      ...(input.remarks ? { remarks: await appendRemarks(supabase, "leads", leadId, input.remarks, "Cancelled") } : {}),
+      ...(input.remarks
+        ? {
+            remarks: await appendRemarks(
+              supabase,
+              "leads",
+              leadId,
+              input.remarks,
+              "Cancelled",
+            ),
+          }
+        : {}),
     })
     .eq("id", leadId);
 
@@ -278,7 +318,14 @@ export async function markRoundExecuted(
       no_of_institutions: input.totalStudents ?? null,
       drive_link: input.driveLink ?? null,
       ...(input.completionRemarks
-        ? { remarks: await appendRemarks(supabase, "lead_rounds", roundId, input.completionRemarks) }
+        ? {
+            remarks: await appendRemarks(
+              supabase,
+              "lead_rounds",
+              roundId,
+              input.completionRemarks,
+            ),
+          }
         : {}),
     })
     .eq("id", roundId);
@@ -290,8 +337,86 @@ export async function markRoundExecuted(
   // order, so only flip to Completed once every round (including this one)
   // has an executed_date — otherwise keep it Planned since something's still
   // outstanding.
-  const { data: leadRow } = await supabase.from("leads").select("executed_date").eq("id", leadId).single();
-  const allDone = await allRoundsDone(supabase, leadId, leadRow?.executed_date ?? null);
+  const { data: leadRow } = await supabase
+    .from("leads")
+    .select("executed_date")
+    .eq("id", leadId)
+    .single();
+  const allDone = await allRoundsDone(
+    supabase,
+    leadId,
+    leadRow?.executed_date ?? null,
+  );
+  const { error: leadError } = await supabase
+    .from("leads")
+    .update({ status: allDone ? "Activity Completed" : "Planned" })
+    .eq("id", leadId);
+  if (leadError) throw new Error(leadError.message);
+
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/leads");
+  revalidatePath("/calendar");
+  revalidatePath("/admin");
+}
+
+export type UpdateRoundInput = {
+  title?: string;
+  status: string;
+  plannedDate?: string;
+  executedDate?: string;
+  totalStudents?: number;
+  plannedGirlsReach?: number;
+  girlsReached?: number;
+  activityUndertaken?: string;
+  driveLink?: string;
+  remarks?: string;
+};
+
+/**
+ * Directly edits any of a round's own fields, regardless of whether it's
+ * already resolved. markRoundExecuted/cancelRound only run once, as part of
+ * the Planned -> Completed/Rejected transition — once a round is resolved
+ * there's otherwise no way to fix a typo or correct a wrong number in what
+ * was recorded.
+ */
+export async function updateRound(
+  roundId: string,
+  leadId: string,
+  input: UpdateRoundInput,
+) {
+  await requireProfileForAction();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("lead_rounds")
+    .update({
+      title: input.title ?? null,
+      status: input.status,
+      planned_date: input.plannedDate ?? null,
+      executed_date: input.executedDate ?? null,
+      no_of_institutions: input.totalStudents ?? null,
+      planned_girls_reach: input.plannedGirlsReach ?? null,
+      girls_reached: input.girlsReached ?? null,
+      activity_undertaken: input.activityUndertaken ?? null,
+      drive_link: input.driveLink ?? null,
+      remarks: input.remarks ?? null,
+    })
+    .eq("id", roundId);
+
+  if (error) throw new Error(error.message);
+
+  // Same re-sync as markRoundExecuted: editing a round's executed_date here
+  // (setting or clearing it) can change whether every round is now done.
+  const { data: leadRow } = await supabase
+    .from("leads")
+    .select("executed_date")
+    .eq("id", leadId)
+    .single();
+  const allDone = await allRoundsDone(
+    supabase,
+    leadId,
+    leadRow?.executed_date ?? null,
+  );
   const { error: leadError } = await supabase
     .from("leads")
     .update({ status: allDone ? "Activity Completed" : "Planned" })
@@ -312,7 +437,11 @@ export async function markRoundExecuted(
  * Activity Completed via allRoundsDone — the lead stays Planned until either
  * this round is somehow resolved differently or another round covers for it.
  */
-export async function cancelRound(roundId: string, leadId: string, input: CancelInput) {
+export async function cancelRound(
+  roundId: string,
+  leadId: string,
+  input: CancelInput,
+) {
   await requireProfileForAction();
   const supabase = await createClient();
 
@@ -321,7 +450,15 @@ export async function cancelRound(roundId: string, leadId: string, input: Cancel
     .update({
       status: input.status,
       ...(input.remarks
-        ? { remarks: await appendRemarks(supabase, "lead_rounds", roundId, input.remarks, "Cancelled") }
+        ? {
+            remarks: await appendRemarks(
+              supabase,
+              "lead_rounds",
+              roundId,
+              input.remarks,
+              "Cancelled",
+            ),
+          }
         : {}),
     })
     .eq("id", roundId);
@@ -360,7 +497,9 @@ export async function addLeadUpdate(input: {
     .eq("id", input.roundId ?? input.leadId)
     .single();
   if (target?.executed_date) {
-    throw new Error("This round is already executed — it can no longer take new updates.");
+    throw new Error(
+      "This round is already executed — it can no longer take new updates.",
+    );
   }
 
   const { error } = await supabase.from("lead_updates").insert({
@@ -394,12 +533,19 @@ export async function rescheduleActivity(input: {
   const table = input.roundId ? "lead_rounds" : "leads";
   const targetId = input.roundId ?? input.leadId;
 
-  const { data: current } = await supabase.from(table).select("planned_date").eq("id", targetId).single();
+  const { data: current } = await supabase
+    .from(table)
+    .select("planned_date")
+    .eq("id", targetId)
+    .single();
   const oldDate = current?.planned_date;
 
   if (oldDate === input.plannedDate) return;
 
-  const { error } = await supabase.from(table).update({ planned_date: input.plannedDate }).eq("id", targetId);
+  const { error } = await supabase
+    .from(table)
+    .update({ planned_date: input.plannedDate })
+    .eq("id", targetId);
   if (error) throw new Error(error.message);
 
   await supabase.from("lead_updates").insert({
