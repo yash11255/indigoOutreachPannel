@@ -123,7 +123,11 @@ export default async function AdminPage() {
           <h1 className="text-xl font-semibold">Admin dashboard</h1>
           <p className="text-sm text-neutral-500">Cross-team view of the full outreach pipeline.</p>
         </div>
-        <Button variant="outline" render={<a href="/admin/export" download />}>
+        <Button
+          variant="outline"
+          nativeButton={false}
+          render={<a href="/admin/export" download />}
+        >
           Download Excel
         </Button>
       </div>
@@ -143,37 +147,7 @@ export default async function AdminPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>By team</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Team</TableHead>
-                <TableHead>Total leads</TableHead>
-                <TableHead>Completed</TableHead>
-                <TableHead>Planned girls reach</TableHead>
-                <TableHead>Girls reached</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {byTeam.map((row) => (
-                <TableRow key={row.team.id}>
-                  <TableCell className="font-medium">{row.team.name}</TableCell>
-                  <TableCell>{row.total}</TableCell>
-                  <TableCell>{row.completed}</TableCell>
-                  <TableCell>{row.plannedGirls}</TableCell>
-                  <TableCell>{row.girlsReached}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Team activity</CardTitle>
+          <CardTitle>Team-wise leads</CardTitle>
         </CardHeader>
         <CardContent>
           <AdminTeamBreakdown rows={teamActivity} />
