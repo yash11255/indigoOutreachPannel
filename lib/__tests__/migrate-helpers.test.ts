@@ -53,6 +53,15 @@ describe("isoDate", () => {
   test("keeps the same day for drift just after midnight", () => {
     assert.equal(isoDate(new Date("2026-06-15T00:00:10.000Z")), "2026-06-15");
   });
+  test("parses a day-first D/M/YYYY string Excel left as free text", () => {
+    assert.equal(isoDate("30/6/2026"), "2026-06-30");
+  });
+  test("parses a zero-padded DD/MM/YYYY string", () => {
+    assert.equal(isoDate("05/07/2026"), "2026-07-05");
+  });
+  test("returns null for an out-of-range day-first string", () => {
+    assert.equal(isoDate("32/13/2026"), null);
+  });
 });
 
 describe("normalizeStatus", () => {

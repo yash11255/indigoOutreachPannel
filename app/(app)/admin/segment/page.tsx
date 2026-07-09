@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { LeadsTable } from "@/components/leads-table";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { stageForStatus, STAGE_ORDER, STAGE_LABELS } from "@/lib/types";
 
 function sum(nums: (number | null)[]) {
@@ -72,11 +73,6 @@ export default async function AdminSegmentPage({
   const byState = region ? groupCount(leads, (l) => l.state) : [];
   const byDistrict = region ? groupCount(leads, (l) => l.district_city) : [];
 
-  const exportParams = new URLSearchParams();
-  if (region) exportParams.set("region", region);
-  if (teamId) exportParams.set("team", teamId);
-  if (subTeam) exportParams.set("subTeam", subTeam);
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -87,15 +83,31 @@ export default async function AdminSegmentPage({
             {sum(leads.map((l) => l.girls_reached)).toLocaleString("en-IN")}
           </p>
         </div>
-        <Button
-          variant="outline"
-          nativeButton={false}
-          render={
-            <a href={`/admin/export?${exportParams.toString()}`} download />
-          }
-        >
-          Download Excel
-        </Button>
+        <form action="/admin/export" className="flex flex-wrap items-end gap-2">
+          {region && <input type="hidden" name="region" value={region} />}
+          {teamId && <input type="hidden" name="team" value={teamId} />}
+          {subTeam && <input type="hidden" name="subTeam" value={subTeam} />}
+          <div className="flex flex-col gap-1">
+            <label htmlFor="export-from" className="text-xs text-neutral-500">
+              From
+            </label>
+            <Input
+              id="export-from"
+              name="from"
+              type="date"
+              className="h-8 w-36"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="export-to" className="text-xs text-neutral-500">
+              To
+            </label>
+            <Input id="export-to" name="to" type="date" className="h-8 w-36" />
+          </div>
+          <Button type="submit" variant="outline">
+            Download Excel
+          </Button>
+        </form>
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">

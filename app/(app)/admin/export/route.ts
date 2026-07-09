@@ -46,7 +46,6 @@ function addGroupedSummarySheet(
     { header: "Planned girls reach", key: "plannedGirls", width: 18 },
     { header: "Girls reached", key: "girlsReached", width: 14 },
   ];
-  styleHeader(sheet);
 
   const groups = new Map<string, Lead[]>();
   for (const l of leads) {
@@ -74,10 +73,23 @@ function addGroupedSummarySheet(
     });
   }
   sheet.autoFilter = { from: "A1", to: "I1" };
+  styleSheet(sheet);
 }
 
-/** Bold white-on-blue header row, frozen, matching the app's own brand blue. */
-function styleHeader(sheet: ExcelJS.Worksheet) {
+const THIN_BORDER: Partial<ExcelJS.Border> = {
+  style: "thin",
+  color: { argb: "FFE0E3E8" },
+};
+
+/**
+ * Bold white-on-blue header row (frozen), thin borders and light zebra
+ * striping on the data rows below it, matching the app's own brand blue.
+ * Call once per sheet after all rows have been added.
+ */
+function styleSheet(
+  sheet: ExcelJS.Worksheet,
+  opts: { freezeFirstColumn?: boolean } = {},
+) {
   const headerRow = sheet.getRow(1);
   headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
   headerRow.fill = {
@@ -87,7 +99,47 @@ function styleHeader(sheet: ExcelJS.Worksheet) {
   };
   headerRow.alignment = { vertical: "middle" };
   headerRow.height = 20;
-  sheet.views = [{ state: "frozen", ySplit: 1 }];
+  sheet.views = [
+    { state: "frozen", ySplit: 1, xSplit: opts.freezeFirstColumn ? 1 : 0 },
+  ];
+
+  sheet.eachRow((row, rowNumber) => {
+    row.eachCell((cell) => {
+      cell.border = {
+        top: THIN_BORDER,
+        left: THIN_BORDER,
+        bottom: THIN_BORDER,
+        right: THIN_BORDER,
+      };
+    });
+    if (rowNumber > 1 && rowNumber % 2 === 0) {
+      row.eachCell((cell) => {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFF4F7FF" },
+        };
+      });
+    }
+  });
+}
+
+/** Validates a "YYYY-MM-DD" param, or returns null if blank/malformed. */
+function parseDateParam(v: string | null): string | null {
+  return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+}
+
+/**
+ * True if a lead's planned or executed date falls within [from, to] (either
+ * bound optional). Compared as plain "YYYY-MM-DD" strings — they sort
+ * lexicographically the same as chronologically, so this sidesteps any
+ * timezone conversion entirely.
+ */
+function withinDateRange(lead: Lead, from: string | null, to: string | null): boolean {
+  if (!from && !to) return true;
+  const dates = [lead.planned_date, lead.executed_date].filter((d): d is string => !!d);
+  if (dates.length === 0) return false;
+  return dates.some((d) => (!from || d >= from) && (!to || d <= to));
 }
 
 export async function GET(request: Request) {
@@ -97,6 +149,8 @@ export async function GET(request: Request) {
   const filterRegion = searchParams.get("region");
   const filterTeamId = searchParams.get("team");
   const filterSubTeam = searchParams.get("subTeam");
+  const filterFrom = parseDateParam(searchParams.get("from"));
+  const filterTo = parseDateParam(searchParams.get("to"));
 
   const [allLeads, teams] = await Promise.all([getLeads(), getTeams()]);
   const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? "—";
@@ -105,12 +159,54 @@ export async function GET(request: Request) {
     (l) =>
       (!filterRegion || l.region === filterRegion) &&
       (!filterTeamId || l.team_id === filterTeamId) &&
-      (!filterSubTeam || l.sub_team === filterSubTeam),
+      (!filterSubTeam || l.sub_team === filterSubTeam) &&
+      withinDateRange(l, filterFrom, filterTo),
   );
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Indigo GWF Outreach Dashboard";
   workbook.created = new Date();
+
+  // ── Report info (cover sheet) ───────────────────────────────────────
+  const scopeLine =
+    [filterRegion, filterTeamId && teamName(filterTeamId), filterSubTeam]
+      .filter(Boolean)
+      .join(" — ") || "All teams and regions";
+  const dateRangeLine =
+    filterFrom || filterTo
+      ? `${filterFrom ?? "the beginning"} to ${filterTo ?? "now"}`
+      : "All dates";
+
+  const infoSheet = workbook.addWorksheet("Report info");
+  infoSheet.properties.tabColor = { argb: "FF0F62FE" };
+  infoSheet.columns = [
+    { key: "label", width: 20 },
+    { key: "value", width: 50 },
+  ];
+  infoSheet.addRow(["Indigo GWF Outreach — Export"]);
+  infoSheet.mergeCells("A1:B1");
+  infoSheet.getCell("A1").font = {
+    bold: true,
+    size: 14,
+    color: { argb: "FF0F62FE" },
+  };
+  infoSheet.addRow([]);
+  infoSheet.addRow(["Scope", scopeLine]);
+  infoSheet.addRow(["Date range (planned/executed)", dateRangeLine]);
+  infoSheet.addRow(["Total leads", leads.length]);
+  infoSheet.addRow([
+    "Generated",
+    new Date().toLocaleString("en-IN", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }),
+  ]);
+  for (let r = 3; r <= 6; r++) {
+    infoSheet.getCell(`A${r}`).font = {
+      bold: true,
+      color: { argb: "FF4A5361" },
+    };
+  }
 
   // Skip a breakdown sheet when the export is already filtered down to a
   // single value on that same dimension — a "by team" sheet with one row
@@ -143,13 +239,13 @@ export async function GET(request: Request) {
     { header: "Stage", key: "stage", width: 16 },
     { header: "Total leads", key: "total", width: 12 },
   ];
-  styleHeader(stageSheet);
   for (const stage of STAGE_ORDER) {
     stageSheet.addRow({
       stage: STAGE_LABELS[stage],
       total: leads.filter((l) => stageForStatus(l.status) === stage).length,
     });
   }
+  styleSheet(stageSheet);
 
   // ── Every lead ───────────────────────────────────────────────────────
   const leadsSheet = workbook.addWorksheet("All leads");
@@ -180,7 +276,6 @@ export async function GET(request: Request) {
     { header: "Drive link", key: "driveLink", width: 30 },
     { header: "Remarks", key: "remarks", width: 34 },
   ];
-  styleHeader(leadsSheet);
 
   for (const l of leads) {
     leadsSheet.addRow({
@@ -200,10 +295,14 @@ export async function GET(request: Request) {
       email: l.email_id,
       member: l.responsible_member,
       plannedActivity: l.planned_activity,
-      plannedDate: l.planned_date,
+      plannedDate: l.planned_date
+        ? new Date(`${l.planned_date}T00:00:00`)
+        : null,
       totalStudents: l.no_of_institutions,
       plannedGirls: l.planned_girls_reach,
-      executedDate: l.executed_date,
+      executedDate: l.executed_date
+        ? new Date(`${l.executed_date}T00:00:00`)
+        : null,
       activityUndertaken: l.activity_undertaken,
       girlsReached: l.girls_reached,
       status: l.status,
@@ -211,13 +310,18 @@ export async function GET(request: Request) {
       remarks: l.remarks,
     });
   }
+  leadsSheet.getColumn("plannedDate").numFmt = "dd-mmm-yyyy";
+  leadsSheet.getColumn("executedDate").numFmt = "dd-mmm-yyyy";
   leadsSheet.autoFilter = { from: "A1", to: "Y1" };
+  styleSheet(leadsSheet, { freezeFirstColumn: true });
 
   const buffer = await workbook.xlsx.writeBuffer();
   const scopeParts = [
     filterRegion,
     filterTeamId && teamName(filterTeamId),
     filterSubTeam,
+    filterFrom,
+    filterTo,
   ].filter(Boolean);
   const scopeSuffix = scopeParts.length
     ? `-${scopeParts.join("-").replace(/[^a-zA-Z0-9-]+/g, "_")}`

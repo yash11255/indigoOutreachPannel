@@ -17,6 +17,7 @@ import {
   type TeamBreakdownRow,
 } from "@/components/admin-team-breakdown";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   STAGE_LABELS,
   STAGE_ORDER,
@@ -190,13 +191,28 @@ export default async function AdminPage() {
             Cross-team view of the full outreach pipeline.
           </p>
         </div>
-        <Button
-          variant="outline"
-          nativeButton={false}
-          render={<a href="/admin/export" download />}
-        >
-          Download Excel
-        </Button>
+        <form action="/admin/export" className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <label htmlFor="export-from" className="text-xs text-neutral-500">
+              From
+            </label>
+            <Input
+              id="export-from"
+              name="from"
+              type="date"
+              className="h-8 w-36"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="export-to" className="text-xs text-neutral-500">
+              To
+            </label>
+            <Input id="export-to" name="to" type="date" className="h-8 w-36" />
+          </div>
+          <Button type="submit" variant="outline">
+            Download Excel
+          </Button>
+        </form>
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
