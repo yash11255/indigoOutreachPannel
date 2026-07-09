@@ -39,9 +39,9 @@ export function CreateMemberForm({ teams }: { teams: Team[] }) {
             <Input id="email" name="email" type="email" required />
           </div>
           <div className="flex flex-col gap-2">
-            <Label>Role</Label>
+            <Label htmlFor="role">Role</Label>
             <Select value={role} onValueChange={(v) => setRole((v as Role) ?? "member")}>
-              <SelectTrigger>
+              <SelectTrigger id="role">
                 <SelectValue>{(value: string) => ROLE_LABELS[value as Role]}</SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -59,9 +59,9 @@ export function CreateMemberForm({ teams }: { teams: Team[] }) {
           </div>
           {needsTeam && (
             <div className="flex flex-col gap-2">
-              <Label>Outreach team</Label>
+              <Label htmlFor="team_id">Outreach team</Label>
               <Select value={teamId} onValueChange={(v) => setTeamId(v ?? "")}>
-                <SelectTrigger>
+                <SelectTrigger id="team_id">
                   <SelectValue>
                     {(value: string) =>
                       !value ? "Select team" : (teams.find((t) => t.id === value)?.name ?? "Select team")
