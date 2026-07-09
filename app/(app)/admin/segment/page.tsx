@@ -186,7 +186,12 @@ export default async function AdminSegmentPage({
           <CardTitle>Leads</CardTitle>
         </CardHeader>
         <CardContent>
-          <LeadsTable leads={leads} teams={teams} showTeamColumn={!teamId} />
+          <LeadsTable
+            leads={leads}
+            teams={teams}
+            showTeamColumn={!teamId}
+            searchable
+          />
         </CardContent>
       </Card>
     </div>

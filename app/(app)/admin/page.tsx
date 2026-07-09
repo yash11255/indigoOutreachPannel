@@ -16,6 +16,7 @@ import {
   AdminTeamBreakdown,
   type TeamBreakdownRow,
 } from "@/components/admin-team-breakdown";
+import { AdminMemberBreakdown } from "@/components/admin-member-breakdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -320,32 +321,7 @@ export default async function AdminPage() {
           <CardTitle>Who&apos;s doing what</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Responsible member</TableHead>
-                <TableHead>Team(s)</TableHead>
-                <TableHead>Total leads</TableHead>
-                <TableHead>Planned</TableHead>
-                <TableHead>In progress</TableHead>
-                <TableHead>Completed</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {byMember.map((row) => (
-                <TableRow key={row.member}>
-                  <TableCell className="font-medium">{row.member}</TableCell>
-                  <TableCell className="text-sm text-neutral-500">
-                    {row.teams}
-                  </TableCell>
-                  <TableCell>{row.total}</TableCell>
-                  <TableCell>{row.planned}</TableCell>
-                  <TableCell>{row.inProgress}</TableCell>
-                  <TableCell>{row.completed}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <AdminMemberBreakdown rows={byMember} />
         </CardContent>
       </Card>
     </div>

@@ -2,17 +2,10 @@ import { requireAdmin } from "@/lib/data/session";
 import { getAllProfiles } from "@/lib/data/admin";
 import { getTeams } from "@/lib/data/lookups";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { CreateMemberForm } from "./create-member-form";
 import { CreateTeamForm } from "./create-team-form";
-import { MemberRow } from "./member-row";
-import { TeamRow } from "./team-row";
+import { SearchableUsersTable } from "./searchable-users-table";
+import { SearchableTeamsTable } from "./searchable-teams-table";
 
 export default async function AdminUsersPage() {
   await requireAdmin();
@@ -27,10 +20,10 @@ export default async function AdminUsersPage() {
           public sign-up — accounts are created here.
         </p>
         <p className="mt-1 text-sm text-neutral-500">
-          <strong>Home team</strong> is their CSR client-account from the Employee
-          Master Data — reference only. <strong>Outreach team</strong> is which
-          pipeline their leads count toward, and is the one that drives every
-          stat in the app.
+          <strong>Home team</strong> is their CSR client-account from the
+          Employee Master Data — reference only. <strong>Outreach team</strong>{" "}
+          is which pipeline their leads count toward, and is the one that drives
+          every stat in the app.
         </p>
       </div>
 
@@ -41,19 +34,7 @@ export default async function AdminUsersPage() {
           <CardTitle>Teams</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead className="text-right">Save</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {teams.map((t) => (
-                <TeamRow key={t.id} team={t} />
-              ))}
-            </TableBody>
-          </Table>
+          <SearchableTeamsTable teams={teams} />
           <p className="mt-2 text-xs text-neutral-400">
             Rename a team here. To move someone into a different team, edit
             their row in the table below and pick from the Team dropdown.
@@ -68,29 +49,7 @@ export default async function AdminUsersPage() {
           <CardTitle>All users</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Home team</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Outreach team</TableHead>
-                <TableHead>Manager</TableHead>
-                <TableHead className="text-right">Save</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {profiles.map((p) => (
-                <MemberRow
-                  key={p.id}
-                  profile={p}
-                  teams={teams}
-                  allProfiles={profiles}
-                />
-              ))}
-            </TableBody>
-          </Table>
+          <SearchableUsersTable profiles={profiles} teams={teams} />
         </CardContent>
       </Card>
     </div>
