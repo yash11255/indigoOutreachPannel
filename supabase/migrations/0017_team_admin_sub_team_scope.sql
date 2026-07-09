@@ -9,6 +9,12 @@
 
 alter table profiles add column sub_team text;
 
+-- Policies must be dropped before the function they call, or Postgres
+-- refuses to drop it (2BP01: dependent objects still reference it).
+drop policy "read own or reports leads" on leads;
+drop policy "read rounds of visible leads" on lead_rounds;
+drop policy "read updates of visible leads" on lead_updates;
+
 drop function public.can_view_lead(uuid, uuid, boolean);
 
 create function public.can_view_lead(
@@ -30,11 +36,9 @@ returns boolean language sql stable security definer set search_path = public as
     );
 $$;
 
-drop policy "read own or reports leads" on leads;
 create policy "read own or reports leads" on leads for select to authenticated
   using (public.can_view_lead(created_by, team_id, imported, sub_team));
 
-drop policy "read rounds of visible leads" on lead_rounds;
 create policy "read rounds of visible leads" on lead_rounds for select to authenticated
   using (
     exists (
@@ -43,7 +47,6 @@ create policy "read rounds of visible leads" on lead_rounds for select to authen
     )
   );
 
-drop policy "read updates of visible leads" on lead_updates;
 create policy "read updates of visible leads" on lead_updates for select to authenticated
   using (
     exists (
