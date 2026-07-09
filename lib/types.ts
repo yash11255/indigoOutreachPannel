@@ -5,7 +5,10 @@ export type Profile = {
   email: string;
   full_name: string | null;
   role: Role;
+  /** The outreach pipeline this person's leads are attributed to — drives every stat in the app. */
   team_id: string | null;
+  /** Their CSR client-account/org team from the Employee Master Data — reference only, doesn't affect stats. */
+  home_team: string | null;
   /** This person's reporting manager, if set — that manager can see leads this person created, in addition to their own. */
   manager_id: string | null;
   created_at: string;

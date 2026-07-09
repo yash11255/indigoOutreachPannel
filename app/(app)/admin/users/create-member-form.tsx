@@ -52,7 +52,7 @@ export function CreateMemberForm({ teams }: { teams: Team[] }) {
           </div>
           {role === "member" && (
             <div className="flex flex-col gap-2">
-              <Label>Team</Label>
+              <Label>Outreach team</Label>
               <Select value={teamId} onValueChange={(v) => setTeamId(v ?? "")}>
                 <SelectTrigger>
                   <SelectValue>

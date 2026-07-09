@@ -59,6 +59,7 @@ export function MemberRow({
     <TableRow>
       <TableCell className="font-medium">{profile.full_name || "—"}</TableCell>
       <TableCell>{profile.email}</TableCell>
+      <TableCell className="text-sm text-neutral-500">{profile.home_team || "—"}</TableCell>
       <TableCell>
         <Select value={role} onValueChange={(v) => setRole((v ?? "member") as Profile["role"])}>
           <SelectTrigger className="w-32">

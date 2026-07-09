@@ -26,6 +26,12 @@ export default async function AdminUsersPage() {
           Create logins for teammates and assign their team + role. There is no
           public sign-up — accounts are created here.
         </p>
+        <p className="mt-1 text-sm text-neutral-500">
+          <strong>Home team</strong> is their CSR client-account from the Employee
+          Master Data — reference only. <strong>Outreach team</strong> is which
+          pipeline their leads count toward, and is the one that drives every
+          stat in the app.
+        </p>
       </div>
 
       <CreateTeamForm />
@@ -67,8 +73,9 @@ export default async function AdminUsersPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Home team</TableHead>
                 <TableHead>Role</TableHead>
-                <TableHead>Team</TableHead>
+                <TableHead>Outreach team</TableHead>
                 <TableHead>Manager</TableHead>
                 <TableHead className="text-right">Save</TableHead>
               </TableRow>
