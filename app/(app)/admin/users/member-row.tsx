@@ -15,26 +15,32 @@ import {
 import { Button } from "@/components/ui/button";
 
 const NO_MANAGER = "__none__";
+const WHOLE_TEAM = "__whole_team__";
 
 export function MemberRow({
   profile,
   teams,
   allProfiles,
+  subTeamsByTeam,
 }: {
   profile: Profile;
   teams: Team[];
   allProfiles: Profile[];
+  subTeamsByTeam: Record<string, string[]>;
 }) {
   const [role, setRole] = useState(profile.role);
   const [teamId, setTeamId] = useState(profile.team_id ?? "");
+  const [subTeam, setSubTeam] = useState(profile.sub_team ?? "");
   const [managerId, setManagerId] = useState(profile.manager_id ?? "");
   const [pending, startTransition] = useTransition();
+  const subTeamOptions = subTeamsByTeam[teamId] ?? [];
 
   function save() {
     const fd = new FormData();
     fd.set("user_id", profile.id);
     fd.set("role", role);
     fd.set("team_id", teamId);
+    fd.set("sub_team", subTeam);
     fd.set("manager_id", managerId);
     startTransition(async () => {
       try {
@@ -49,6 +55,7 @@ export function MemberRow({
   const dirty =
     role !== profile.role ||
     teamId !== (profile.team_id ?? "") ||
+    subTeam !== (profile.sub_team ?? "") ||
     managerId !== (profile.manager_id ?? "");
 
   const managerCandidates = allProfiles
@@ -74,20 +81,48 @@ export function MemberRow({
       </TableCell>
       <TableCell>
         {role === "member" || role === "team_admin" ? (
-          <Select value={teamId} onValueChange={(v) => setTeamId(v ?? "")}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="No team">
-                {(value: string) => teams.find((t) => t.id === value)?.name ?? "No team"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {teams.map((t) => (
-                <SelectItem key={t.id} value={t.id}>
-                  {t.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col gap-1.5">
+            <Select
+              value={teamId}
+              onValueChange={(v) => {
+                setTeamId(v ?? "");
+                setSubTeam("");
+              }}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="No team">
+                  {(value: string) => teams.find((t) => t.id === value)?.name ?? "No team"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {teams.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {role === "team_admin" && teamId && subTeamOptions.length > 0 && (
+              <Select
+                value={subTeam || WHOLE_TEAM}
+                onValueChange={(v) => setSubTeam(!v || v === WHOLE_TEAM ? "" : v)}
+              >
+                <SelectTrigger className="w-48">
+                  <SelectValue>
+                    {(value: string) => (value === WHOLE_TEAM ? "Whole team" : value)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={WHOLE_TEAM}>Whole team</SelectItem>
+                  {subTeamOptions.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
         ) : (
           <span className="text-sm text-neutral-400">All teams</span>
         )}

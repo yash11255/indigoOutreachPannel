@@ -14,8 +14,21 @@ const MOBILE_LINK_CLASS =
   "flex h-12 items-center border-b border-[#393939] px-4 text-sm text-neutral-200 hover:bg-white/5";
 
 /** Nav links + a hamburger menu below `md`, since the inline links overflow on phone-width screens. */
-export function AppNav({ role, teamId }: { role: Role; teamId: string | null }) {
+export function AppNav({
+  role,
+  teamId,
+  subTeam,
+}: {
+  role: Role;
+  teamId: string | null;
+  /** Only meaningful for team_admin — narrows "My Team" to one client-account sub-division. */
+  subTeam: string | null;
+}) {
   const [open, setOpen] = useState(false);
+
+  const myTeamHref = teamId
+    ? `/admin/segment?team=${encodeURIComponent(teamId)}${subTeam ? `&subTeam=${encodeURIComponent(subTeam)}` : ""}`
+    : null;
 
   const links: NavItem[] = [
     { href: "/leads", label: "Leads" },
@@ -28,8 +41,8 @@ export function AppNav({ role, teamId }: { role: Role; teamId: string | null }) 
           { href: "/admin/logs", label: "Logs" },
         ]
       : []),
-    ...(role === "team_admin" && teamId
-      ? [{ href: `/admin/segment?team=${teamId}`, label: "My Team" }]
+    ...(role === "team_admin" && myTeamHref
+      ? [{ href: myTeamHref, label: "My Team" }]
       : []),
   ];
 

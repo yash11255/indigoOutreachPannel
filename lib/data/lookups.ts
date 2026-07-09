@@ -8,6 +8,43 @@ export async function getTeams(): Promise<Team[]> {
   return data ?? [];
 }
 
+/**
+ * Distinct sub_team values actually in use per team (e.g. BC FutureTech ->
+ * IBM/Lenovo/Honeywell/...), for the "which sub-division" picker when
+ * creating a team_admin scoped narrower than their whole team. Teams with no
+ * sub_team data at all (most of them) just won't have an entry.
+ */
+export async function getSubTeamsByTeam(): Promise<Record<string, string[]>> {
+  const supabase = await createClient();
+  const byTeam = new Map<string, Set<string>>();
+  const PAGE_SIZE = 1000;
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("leads")
+      .select("team_id, sub_team")
+      .not("sub_team", "is", null)
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    for (const row of data ?? []) {
+      if (!row.sub_team) continue;
+      const set = byTeam.get(row.team_id) ?? new Set<string>();
+      set.add(row.sub_team);
+      byTeam.set(row.team_id, set);
+    }
+    if (!data || data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  return Object.fromEntries(
+    Array.from(byTeam.entries()).map(([teamId, set]) => [
+      teamId,
+      Array.from(set).sort(),
+    ]),
+  );
+}
+
 export async function getStatuses(): Promise<StatusLookup[]> {
   const supabase = await createClient();
   const { data } = await supabase.from("statuses").select("*").order("sort_order");

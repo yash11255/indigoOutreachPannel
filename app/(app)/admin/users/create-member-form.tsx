@@ -16,12 +16,21 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const initialState: CreateMemberState = {};
+const WHOLE_TEAM = "__whole_team__";
 
-export function CreateMemberForm({ teams }: { teams: Team[] }) {
+export function CreateMemberForm({
+  teams,
+  subTeamsByTeam,
+}: {
+  teams: Team[];
+  subTeamsByTeam: Record<string, string[]>;
+}) {
   const [state, formAction, pending] = useActionState(createMember, initialState);
   const [role, setRole] = useState<Role>("member");
   const [teamId, setTeamId] = useState("");
+  const [subTeam, setSubTeam] = useState("");
   const needsTeam = role === "member" || role === "team_admin";
+  const subTeamOptions = subTeamsByTeam[teamId] ?? [];
 
   return (
     <Card>
@@ -60,7 +69,13 @@ export function CreateMemberForm({ teams }: { teams: Team[] }) {
           {needsTeam && (
             <div className="flex flex-col gap-2">
               <Label htmlFor="team_id">Outreach team</Label>
-              <Select value={teamId} onValueChange={(v) => setTeamId(v ?? "")}>
+              <Select
+                value={teamId}
+                onValueChange={(v) => {
+                  setTeamId(v ?? "");
+                  setSubTeam("");
+                }}
+              >
                 <SelectTrigger id="team_id">
                   <SelectValue>
                     {(value: string) =>
@@ -77,6 +92,35 @@ export function CreateMemberForm({ teams }: { teams: Team[] }) {
                 </SelectContent>
               </Select>
               <input type="hidden" name="team_id" value={teamId} />
+            </div>
+          )}
+
+          {role === "team_admin" && teamId && subTeamOptions.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="sub_team">Sub-division</Label>
+              <Select
+                value={subTeam || WHOLE_TEAM}
+                onValueChange={(v) => setSubTeam(!v || v === WHOLE_TEAM ? "" : v)}
+              >
+                <SelectTrigger id="sub_team">
+                  <SelectValue>
+                    {(value: string) => (value === WHOLE_TEAM ? "Whole team" : value)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={WHOLE_TEAM}>Whole team</SelectItem>
+                  {subTeamOptions.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <input type="hidden" name="sub_team" value={subTeam} />
+              <p className="text-xs text-neutral-500">
+                Leave as &quot;Whole team&quot; to see everything on this team, or pick one
+                client-account sub-division (e.g. IBM) to scope them to just that.
+              </p>
             </div>
           )}
 

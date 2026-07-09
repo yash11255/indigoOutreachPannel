@@ -34,6 +34,7 @@ export async function createMember(
   const email = String(formData.get("email") ?? "").trim();
   const fullName = String(formData.get("full_name") ?? "").trim();
   const teamId = String(formData.get("team_id") ?? "").trim();
+  const subTeam = String(formData.get("sub_team") ?? "").trim();
   const role = String(formData.get("role") ?? "member").trim();
 
   if (!email) return { error: "Email is required." };
@@ -68,6 +69,7 @@ export async function createMember(
     .update({
       full_name: fullName || null,
       team_id: role === "admin" ? null : teamId,
+      sub_team: role === "team_admin" ? subTeam || null : null,
       role,
     })
     .eq("id", created.user.id);
@@ -149,6 +151,7 @@ export async function updateMember(formData: FormData) {
 
   const userId = String(formData.get("user_id") ?? "");
   const teamId = String(formData.get("team_id") ?? "").trim();
+  const subTeam = String(formData.get("sub_team") ?? "").trim();
   const role = String(formData.get("role") ?? "member").trim();
   const managerId = String(formData.get("manager_id") ?? "").trim();
   if (!userId) throw new Error("Missing user id");
@@ -161,6 +164,7 @@ export async function updateMember(formData: FormData) {
     .update({
       role,
       team_id: role === "admin" ? null : teamId || null,
+      sub_team: role === "team_admin" ? subTeam || null : null,
       manager_id: managerId || null,
     })
     .eq("id", userId);

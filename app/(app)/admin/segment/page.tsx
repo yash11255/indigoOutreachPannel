@@ -49,15 +49,19 @@ export default async function AdminSegmentPage({
 }) {
   const profile = await requireAdminOrTeamAdmin();
   const isFullAdmin = profile.role === "admin";
-  const { subTeam } = await searchParams;
-  let { region, team: teamId } = await searchParams;
+  let { region, team: teamId, subTeam } = await searchParams;
 
   // A team_admin only ever sees their own team — region rolls up multiple
   // teams, so it isn't a meaningful scope for them either. Force both rather
   // than erroring, so an edited/stale URL just lands them back on their team.
+  // If they're also scoped to one sub-division (e.g. the IBM lead), force
+  // that too rather than letting a query param widen it back to the whole
+  // team. A whole-team team_admin (sub_team null) can still optionally drill
+  // into a sub-team via the URL, same as a full admin can.
   if (!isFullAdmin) {
     region = undefined;
     teamId = profile.team_id ?? undefined;
+    if (profile.sub_team) subTeam = profile.sub_team;
   }
   if (!region && !teamId && !subTeam) notFound();
 

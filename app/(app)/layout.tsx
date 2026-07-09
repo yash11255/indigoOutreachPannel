@@ -21,7 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             >
               Indigo GWF <span className="ml-1 hidden font-normal text-neutral-400 sm:inline">Outreach</span>
             </Link>
-            <AppNav role={profile.role} teamId={profile.team_id} />
+            <AppNav role={profile.role} teamId={profile.team_id} subTeam={profile.sub_team} />
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <Avatar className="h-7 w-7 rounded-none bg-[#0f62fe] text-xs text-white">

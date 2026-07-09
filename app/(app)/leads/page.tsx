@@ -11,8 +11,9 @@ export default async function LeadsPage() {
 
   // No team-based filter here: RLS already scopes rows to what this profile
   // is allowed to see (their own leads, plus their direct reports' if
-  // they're someone's manager, plus their whole team if they're a
-  // view-only team_admin; everything for full admins).
+  // they're someone's manager, plus their team — or just one sub-division of
+  // it, if they're a view-only team_admin scoped that narrowly; everything
+  // for full admins).
   const [leads, dueLeads, teams, statuses, regionsStates, districtsMaster] = await Promise.all([
     getLeads(),
     getDueLeads(),
@@ -24,7 +25,9 @@ export default async function LeadsPage() {
 
   const heading = isAdmin ? "All leads" : isTeamAdmin ? "Team leads" : "Your leads";
   const subtitle = isTeamAdmin
-    ? "View-only access to every lead on your team."
+    ? profile.sub_team
+      ? `View-only access to every lead in ${profile.sub_team}.`
+      : "View-only access to every lead on your team."
     : "Create a lead with a planned date, then move it to execution once the activity happens.";
 
   return (

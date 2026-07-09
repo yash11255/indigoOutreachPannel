@@ -15,9 +15,11 @@ import { MemberRow } from "./member-row";
 export function SearchableUsersTable({
   profiles,
   teams,
+  subTeamsByTeam,
 }: {
   profiles: Profile[];
   teams: Team[];
+  subTeamsByTeam: Record<string, string[]>;
 }) {
   const [query, setQuery] = useState("");
 
@@ -68,6 +70,7 @@ export function SearchableUsersTable({
               profile={p}
               teams={teams}
               allProfiles={profiles}
+              subTeamsByTeam={subTeamsByTeam}
             />
           ))}
         </TableBody>

@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/lib/data/session";
 import { getAllProfiles } from "@/lib/data/admin";
-import { getTeams } from "@/lib/data/lookups";
+import { getTeams, getSubTeamsByTeam } from "@/lib/data/lookups";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreateMemberForm } from "./create-member-form";
 import { CreateTeamForm } from "./create-team-form";
@@ -9,7 +9,11 @@ import { SearchableTeamsTable } from "./searchable-teams-table";
 
 export default async function AdminUsersPage() {
   await requireAdmin();
-  const [profiles, teams] = await Promise.all([getAllProfiles(), getTeams()]);
+  const [profiles, teams, subTeamsByTeam] = await Promise.all([
+    getAllProfiles(),
+    getTeams(),
+    getSubTeamsByTeam(),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -42,14 +46,14 @@ export default async function AdminUsersPage() {
         </CardContent>
       </Card>
 
-      <CreateMemberForm teams={teams} />
+      <CreateMemberForm teams={teams} subTeamsByTeam={subTeamsByTeam} />
 
       <Card>
         <CardHeader>
           <CardTitle>All users</CardTitle>
         </CardHeader>
         <CardContent>
-          <SearchableUsersTable profiles={profiles} teams={teams} />
+          <SearchableUsersTable profiles={profiles} teams={teams} subTeamsByTeam={subTeamsByTeam} />
         </CardContent>
       </Card>
     </div>

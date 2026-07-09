@@ -1,7 +1,9 @@
 /**
- * "team_admin" is a view-only role scoped to one outreach team: they see
- * every lead on that team (like an admin would) but can't create, edit, or
- * execute anything, and have no visibility into any other team.
+ * "team_admin" is a view-only role scoped to one outreach team (or, if
+ * sub_team is also set on their profile, to just that client-account
+ * sub-division within the team — e.g. the IBM lead under BC FutureTech).
+ * They see every matching lead but can't create, edit, or execute anything,
+ * and have no visibility outside their own scope.
  */
 export type Role = "admin" | "member" | "team_admin";
 
@@ -25,6 +27,8 @@ export type Profile = {
   team_id: string | null;
   /** Their CSR client-account/org team from the Employee Master Data — reference only, doesn't affect stats. */
   home_team: string | null;
+  /** Only meaningful for a team_admin: narrows their view to one client-account sub-division within team_id, instead of the whole team. Null for every other role. */
+  sub_team: string | null;
   /** This person's reporting manager, if set — that manager can see leads this person created, in addition to their own. */
   manager_id: string | null;
   created_at: string;

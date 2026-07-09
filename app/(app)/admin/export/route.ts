@@ -148,10 +148,13 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   // A team_admin can only ever export their own team — region spans
-  // multiple teams, so that's not a meaningful scope for them either.
+  // multiple teams, so that's not a meaningful scope for them either. If
+  // they're also scoped to one sub-division, force that too rather than
+  // letting a query param widen it back to the whole team.
   const filterRegion = isFullAdmin ? searchParams.get("region") : null;
   const filterTeamId = isFullAdmin ? searchParams.get("team") : profile.team_id;
-  const filterSubTeam = searchParams.get("subTeam");
+  const filterSubTeam =
+    !isFullAdmin && profile.sub_team ? profile.sub_team : searchParams.get("subTeam");
   const filterFrom = parseDateParam(searchParams.get("from"));
   const filterTo = parseDateParam(searchParams.get("to"));
 
