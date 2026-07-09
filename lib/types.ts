@@ -24,6 +24,8 @@ export type Team = {
 export type Lead = {
   id: string;
   team_id: string;
+  /** Client-account sub-division within the outreach team (e.g. IBM, Lenovo under BC FutureTech) — optional, set per-lead from the source sheet. */
+  sub_team: string | null;
   created_by: string | null;
   region: string | null;
   state: string | null;
@@ -87,7 +89,10 @@ export type TimelineStep = {
   roundId: string | null;
 };
 
-export function buildLeadTimeline(lead: Lead, rounds: LeadRound[]): TimelineStep[] {
+export function buildLeadTimeline(
+  lead: Lead,
+  rounds: LeadRound[],
+): TimelineStep[] {
   const round1: TimelineStep = {
     sequenceNo: 1,
     title: lead.planned_activity || "Round 1",
@@ -183,11 +188,7 @@ export type ActivityPlaybook = {
 
 /** Derived UI stage — computed from `status`, never stored, so there's one source of truth. */
 export type LeadStage =
-  | "planned"
-  | "outreach_sent"
-  | "scheduled"
-  | "completed"
-  | "stalled";
+  "planned" | "outreach_sent" | "scheduled" | "completed" | "stalled";
 
 const STAGE_BY_STATUS: Record<string, LeadStage> = {
   Planned: "planned",
@@ -225,4 +226,7 @@ export const STAGE_ORDER: LeadStage[] = [
 
 /** The two canonical statuses that mean "this activity isn't happening" — same vocabulary the Edit form's Status picker already offers. */
 export const CANCEL_STATUSES = ["Rejected", "No Response"] as const;
-export type CancelInput = { status: (typeof CANCEL_STATUSES)[number]; remarks?: string };
+export type CancelInput = {
+  status: (typeof CANCEL_STATUSES)[number];
+  remarks?: string;
+};

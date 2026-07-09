@@ -21,6 +21,12 @@ export type TeamBreakdownRow = {
   plannedGirls: number;
   girlsReached: number;
   stages: Record<LeadStage, number>;
+  subTeams: {
+    name: string;
+    total: number;
+    completed: number;
+    stages: Record<LeadStage, number>;
+  }[];
   leads: {
     id: string;
     institution: string;
@@ -51,7 +57,8 @@ const ACHIEVED_GREEN = "#24a148";
 /**
  * Team-wise leads: an all-teams consolidated total up top, then a collapsible
  * per-team breakdown below — a proportional stage bar for scanning at a
- * glance, expandable to a scrollable list of every lead on that team.
+ * glance, expandable to that team's client-account sub-divisions (if any)
+ * and a scrollable list of every lead on that team.
  */
 export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -184,6 +191,41 @@ export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
                       </span>
                     </div>
                   </div>
+                  {row.subTeams.length > 0 && (
+                    <div className="flex flex-col gap-1.5 border-t px-4 py-3">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
+                        Sub-divisions
+                      </span>
+                      {row.subTeams.map((sub) => (
+                        <div
+                          key={sub.name}
+                          className="flex items-center gap-3 text-sm"
+                        >
+                          <span className="min-w-0 flex-1 truncate">
+                            {sub.name}
+                          </span>
+                          <div className="flex h-1.5 w-20 shrink-0 overflow-hidden rounded-full bg-neutral-100 sm:w-28">
+                            {STAGE_ORDER.map(
+                              (stage) =>
+                                sub.stages[stage] > 0 && (
+                                  <div
+                                    key={stage}
+                                    style={{
+                                      width: `${(sub.stages[stage] / sub.total) * 100}%`,
+                                      backgroundColor: STAGE_COLOR[stage],
+                                    }}
+                                    title={`${STAGE_LABELS[stage]}: ${sub.stages[stage]}`}
+                                  />
+                                ),
+                            )}
+                          </div>
+                          <span className="w-20 shrink-0 text-right text-xs text-neutral-500">
+                            {sub.completed}/{sub.total} done
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex max-h-80 flex-col overflow-y-auto">
                     {row.leads.map((r) => (
                       <Link

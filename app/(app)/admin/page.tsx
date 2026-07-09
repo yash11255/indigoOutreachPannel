@@ -72,6 +72,29 @@ export default async function AdminPage() {
           member: l.responsible_member,
           status: l.status,
         }));
+
+      const subTeamMap = new Map<
+        string,
+        { total: number; completed: number; stages: Record<LeadStage, number> }
+      >();
+      for (const l of teamLeads) {
+        const key = l.sub_team?.trim();
+        if (!key) continue;
+        const entry = subTeamMap.get(key) ?? {
+          total: 0,
+          completed: 0,
+          stages: emptyStages(),
+        };
+        entry.total += 1;
+        const stage = stageForStatus(l.status);
+        entry.stages[stage] += 1;
+        if (stage === "completed") entry.completed += 1;
+        subTeamMap.set(key, entry);
+      }
+      const subTeams = Array.from(subTeamMap.entries())
+        .map(([name, stats]) => ({ name, ...stats }))
+        .sort((a, b) => b.total - a.total);
+
       return {
         teamId: row.team.id,
         teamName: row.team.name,
@@ -80,6 +103,7 @@ export default async function AdminPage() {
         plannedGirls: row.plannedGirls,
         girlsReached: row.girlsReached,
         stages,
+        subTeams,
         leads: sortedLeads,
       };
     })
