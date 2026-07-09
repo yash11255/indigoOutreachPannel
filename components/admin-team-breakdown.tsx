@@ -171,13 +171,25 @@ export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
               </button>
               {isOpen && (
                 <div className="border-t">
-                  <div className="grid grid-cols-3 gap-4 px-4 py-3 text-xs text-neutral-500">
-                    <div>
-                      Completed{" "}
-                      <span className="font-medium text-neutral-900">
-                        {row.completed}
+                  <div className="flex flex-wrap gap-x-4 gap-y-1.5 px-4 py-3 text-xs text-neutral-500">
+                    {STAGE_ORDER.map((stage) => (
+                      <span
+                        key={stage}
+                        className="inline-flex items-center gap-1.5 whitespace-nowrap"
+                      >
+                        <span
+                          className="inline-block size-2 shrink-0 rounded-full"
+                          style={{ backgroundColor: STAGE_COLOR[stage] }}
+                          aria-hidden
+                        />
+                        {STAGE_LABELS[stage]}{" "}
+                        <span className="font-medium text-neutral-900">
+                          {row.stages[stage]}
+                        </span>
                       </span>
-                    </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 border-t px-4 py-3 text-xs text-neutral-500">
                     <div>
                       Planned girls reach{" "}
                       <span className="font-medium text-neutral-900">
