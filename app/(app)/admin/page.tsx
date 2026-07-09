@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireAdmin } from "@/lib/data/session";
 import { getLeads } from "@/lib/data/leads";
 import { getTeams } from "@/lib/data/lookups";
@@ -268,7 +269,18 @@ export default async function AdminPage() {
             <TableBody>
               {Array.from(regionMap.entries()).map(([region, stats]) => (
                 <TableRow key={region}>
-                  <TableCell className="font-medium">{region}</TableCell>
+                  <TableCell className="font-medium">
+                    {region === "Unspecified" ? (
+                      region
+                    ) : (
+                      <Link
+                        href={`/admin/segment?region=${encodeURIComponent(region)}`}
+                        className="hover:underline"
+                      >
+                        {region}
+                      </Link>
+                    )}
+                  </TableCell>
                   <TableCell>{stats.total}</TableCell>
                   <TableCell>{stats.completed}</TableCell>
                 </TableRow>

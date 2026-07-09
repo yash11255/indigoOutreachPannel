@@ -2,36 +2,41 @@ import ExcelJS from "exceljs";
 import { requireAdmin } from "@/lib/data/session";
 import { getLeads } from "@/lib/data/leads";
 import { getTeams } from "@/lib/data/lookups";
-import { STAGE_ORDER, STAGE_LABELS, stageForStatus, type LeadStage } from "@/lib/types";
+import {
+  STAGE_ORDER,
+  STAGE_LABELS,
+  stageForStatus,
+  type LeadStage,
+  type Lead,
+} from "@/lib/types";
 
 function sum(nums: (number | null)[]) {
   return nums.reduce<number>((acc, n) => acc + (n ?? 0), 0);
 }
 
-/** Bold white-on-blue header row, frozen, matching the app's own brand blue. */
-function styleHeader(sheet: ExcelJS.Worksheet) {
-  const headerRow = sheet.getRow(1);
-  headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
-  headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F62FE" } };
-  headerRow.alignment = { vertical: "middle" };
-  headerRow.height = 20;
-  sheet.views = [{ state: "frozen", ySplit: 1 }];
+function stageCounts(rows: Lead[]) {
+  const stages: Record<LeadStage, number> = {
+    planned: 0,
+    outreach_sent: 0,
+    scheduled: 0,
+    completed: 0,
+    stalled: 0,
+  };
+  for (const l of rows) stages[stageForStatus(l.status)] += 1;
+  return stages;
 }
 
-export async function GET() {
-  await requireAdmin();
-
-  const [leads, teams] = await Promise.all([getLeads(), getTeams()]);
-  const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? "—";
-
-  const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Indigo GWF Outreach Dashboard";
-  workbook.created = new Date();
-
-  // ── Summary by team ──────────────────────────────────────────────────
-  const summarySheet = workbook.addWorksheet("Summary by team");
-  summarySheet.columns = [
-    { header: "Team", key: "team", width: 28 },
+/** Groups leads by a key and writes one summary row per group, in descending total order. */
+function addGroupedSummarySheet(
+  workbook: ExcelJS.Workbook,
+  sheetName: string,
+  columnHeader: string,
+  leads: Lead[],
+  keyOf: (l: Lead) => string,
+) {
+  const sheet = workbook.addWorksheet(sheetName);
+  sheet.columns = [
+    { header: columnHeader, key: "group", width: 24 },
     { header: "Total leads", key: "total", width: 12 },
     { header: "Planned", key: "planned", width: 10 },
     { header: "Outreach sent", key: "sent", width: 14 },
@@ -41,31 +46,96 @@ export async function GET() {
     { header: "Planned girls reach", key: "plannedGirls", width: 18 },
     { header: "Girls reached", key: "girlsReached", width: 14 },
   ];
-  styleHeader(summarySheet);
+  styleHeader(sheet);
 
-  for (const team of teams) {
-    const teamLeads = leads.filter((l) => l.team_id === team.id);
-    const stages: Record<LeadStage, number> = {
-      planned: 0,
-      outreach_sent: 0,
-      scheduled: 0,
-      completed: 0,
-      stalled: 0,
-    };
-    for (const l of teamLeads) stages[stageForStatus(l.status)] += 1;
-    summarySheet.addRow({
-      team: team.name,
-      total: teamLeads.length,
+  const groups = new Map<string, Lead[]>();
+  for (const l of leads) {
+    const key = keyOf(l) || "Unspecified";
+    const arr = groups.get(key) ?? [];
+    arr.push(l);
+    groups.set(key, arr);
+  }
+
+  const sorted = Array.from(groups.entries()).sort(
+    (a, b) => b[1].length - a[1].length,
+  );
+  for (const [group, rows] of sorted) {
+    const stages = stageCounts(rows);
+    sheet.addRow({
+      group,
+      total: rows.length,
       planned: stages.planned,
       sent: stages.outreach_sent,
       scheduled: stages.scheduled,
       completed: stages.completed,
       stalled: stages.stalled,
-      plannedGirls: sum(teamLeads.map((l) => l.planned_girls_reach)),
-      girlsReached: sum(teamLeads.map((l) => l.girls_reached)),
+      plannedGirls: sum(rows.map((l) => l.planned_girls_reach)),
+      girlsReached: sum(rows.map((l) => l.girls_reached)),
     });
   }
-  summarySheet.autoFilter = { from: "A1", to: "I1" };
+  sheet.autoFilter = { from: "A1", to: "I1" };
+}
+
+/** Bold white-on-blue header row, frozen, matching the app's own brand blue. */
+function styleHeader(sheet: ExcelJS.Worksheet) {
+  const headerRow = sheet.getRow(1);
+  headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+  headerRow.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF0F62FE" },
+  };
+  headerRow.alignment = { vertical: "middle" };
+  headerRow.height = 20;
+  sheet.views = [{ state: "frozen", ySplit: 1 }];
+}
+
+export async function GET(request: Request) {
+  await requireAdmin();
+
+  const { searchParams } = new URL(request.url);
+  const filterRegion = searchParams.get("region");
+  const filterTeamId = searchParams.get("team");
+  const filterSubTeam = searchParams.get("subTeam");
+
+  const [allLeads, teams] = await Promise.all([getLeads(), getTeams()]);
+  const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? "—";
+
+  const leads = allLeads.filter(
+    (l) =>
+      (!filterRegion || l.region === filterRegion) &&
+      (!filterTeamId || l.team_id === filterTeamId) &&
+      (!filterSubTeam || l.sub_team === filterSubTeam),
+  );
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Indigo GWF Outreach Dashboard";
+  workbook.created = new Date();
+
+  // Skip a breakdown sheet when the export is already filtered down to a
+  // single value on that same dimension — a "by team" sheet with one row
+  // isn't useful once you've already picked a team.
+  if (!filterTeamId) {
+    addGroupedSummarySheet(workbook, "Summary by team", "Team", leads, (l) =>
+      teamName(l.team_id),
+    );
+  }
+  if (!filterRegion) {
+    addGroupedSummarySheet(
+      workbook,
+      "Summary by region",
+      "Region",
+      leads,
+      (l) => l.region ?? "",
+    );
+  }
+  addGroupedSummarySheet(
+    workbook,
+    "Summary by state",
+    "State",
+    leads,
+    (l) => l.state ?? "",
+  );
 
   // ── By stage (matches the dashboard's stat cards) ───────────────────
   const stageSheet = workbook.addWorksheet("By stage");
@@ -86,6 +156,7 @@ export async function GET() {
   leadsSheet.columns = [
     { header: "Institution", key: "institution", width: 34 },
     { header: "Team", key: "team", width: 20 },
+    { header: "Sub-team", key: "subTeam", width: 20 },
     { header: "Region", key: "region", width: 12 },
     { header: "State", key: "state", width: 16 },
     { header: "District / City", key: "district", width: 18 },
@@ -115,6 +186,7 @@ export async function GET() {
     leadsSheet.addRow({
       institution: l.institution_name,
       team: teamName(l.team_id),
+      subTeam: l.sub_team,
       region: l.region,
       state: l.state,
       district: l.district_city,
@@ -139,14 +211,23 @@ export async function GET() {
       remarks: l.remarks,
     });
   }
-  leadsSheet.autoFilter = { from: "A1", to: "X1" };
+  leadsSheet.autoFilter = { from: "A1", to: "Y1" };
 
   const buffer = await workbook.xlsx.writeBuffer();
-  const filename = `indigo-gwf-outreach-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  const scopeParts = [
+    filterRegion,
+    filterTeamId && teamName(filterTeamId),
+    filterSubTeam,
+  ].filter(Boolean);
+  const scopeSuffix = scopeParts.length
+    ? `-${scopeParts.join("-").replace(/[^a-zA-Z0-9-]+/g, "_")}`
+    : "";
+  const filename = `indigo-gwf-outreach${scopeSuffix}-${new Date().toISOString().slice(0, 10)}.xlsx`;
 
   return new Response(buffer, {
     headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Type":
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename="${filename}"`,
     },
   });

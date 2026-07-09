@@ -197,9 +197,10 @@ export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
                         Sub-divisions
                       </span>
                       {row.subTeams.map((sub) => (
-                        <div
+                        <Link
                           key={sub.name}
-                          className="flex items-center gap-3 text-sm"
+                          href={`/admin/segment?team=${row.teamId}&subTeam=${encodeURIComponent(sub.name)}`}
+                          className="flex items-center gap-3 text-sm hover:underline"
                         >
                           <span className="min-w-0 flex-1 truncate">
                             {sub.name}
@@ -222,7 +223,7 @@ export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
                           <span className="w-20 shrink-0 text-right text-xs text-neutral-500">
                             {sub.completed}/{sub.total} done
                           </span>
-                        </div>
+                        </Link>
                       ))}
                     </div>
                   )}

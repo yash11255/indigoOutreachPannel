@@ -201,6 +201,7 @@ export default async function LeadDetailPage({
       <Card>
         <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <Field label="Team" value={teamName} />
+          {lead.sub_team && <Field label="Sub-team" value={lead.sub_team} />}
           <Field label="Region" value={lead.region} />
           <Field label="State" value={lead.state} />
           <Field label="District / City" value={lead.district_city} />

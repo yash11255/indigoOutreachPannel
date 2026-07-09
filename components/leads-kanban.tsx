@@ -23,19 +23,31 @@ export function LeadsKanban({
   return (
     <div className="flex gap-4 overflow-x-auto pb-2 md:grid md:grid-cols-5 md:overflow-visible">
       {STAGE_ORDER.map((stage) => {
-        const stageLeads = leads.filter((l) => stageForStatus(l.status) === stage);
+        const stageLeads = leads.filter(
+          (l) => stageForStatus(l.status) === stage,
+        );
         return (
-          <div key={stage} className="flex w-64 shrink-0 flex-col gap-2 md:w-auto">
+          <div
+            key={stage}
+            className="flex w-64 shrink-0 flex-col gap-2 md:w-auto"
+          >
             <div className="flex items-center justify-between px-1">
-              <h3 className="text-sm font-semibold text-neutral-700">{STAGE_LABELS[stage]}</h3>
-              <span className="text-xs text-neutral-400">{stageLeads.length}</span>
+              <h3 className="text-sm font-semibold text-neutral-700">
+                {STAGE_LABELS[stage]}
+              </h3>
+              <span className="text-xs text-neutral-400">
+                {stageLeads.length}
+              </span>
             </div>
             <div className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto pr-1">
               {stageLeads.map((lead) => (
                 <Card key={lead.id} className="gap-2 py-3">
                   <CardHeader className="px-3">
                     <CardTitle className="text-sm">
-                      <Link href={`/leads/${lead.id}`} className="hover:underline">
+                      <Link
+                        href={`/leads/${lead.id}`}
+                        className="hover:underline"
+                      >
                         {lead.institution_name}
                       </Link>
                     </CardTitle>
@@ -43,7 +55,11 @@ export function LeadsKanban({
                   <CardContent className="flex flex-col gap-2 px-3 text-xs text-neutral-600">
                     <div>{lead.responsible_member || "—"}</div>
                     {showTeamLabel && <div>{teamName(lead.team_id)}</div>}
-                    <div>{[lead.region, lead.state].filter(Boolean).join(" / ") || "—"}</div>
+                    {lead.sub_team && <div>{lead.sub_team}</div>}
+                    <div>
+                      {[lead.region, lead.state].filter(Boolean).join(" / ") ||
+                        "—"}
+                    </div>
                     <div>Planned: {lead.planned_date ?? "—"}</div>
                     <StatusBadge status={lead.status} />
                     {!lead.executed_date && (
@@ -53,7 +69,11 @@ export function LeadsKanban({
                         initialGirlsReached={lead.girls_reached}
                         onConfirm={markLeadExecuted.bind(null, lead.id)}
                         trigger={
-                          <Button size="sm" variant="outline" className="mt-1 w-full">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="mt-1 w-full"
+                          >
                             Mark as executed
                           </Button>
                         }
