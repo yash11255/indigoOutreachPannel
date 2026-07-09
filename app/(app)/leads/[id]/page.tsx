@@ -27,7 +27,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { buildLeadTimeline, stageForStatus } from "@/lib/types";
+import { buildLeadTimeline, stageForStatus, canEditLeads } from "@/lib/types";
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -68,6 +68,7 @@ export default async function LeadDetailPage({
   const { id } = await params;
   const profile = await requireProfile();
   const isAdmin = profile.role === "admin";
+  const canEdit = canEditLeads(profile.role);
 
   const [
     lead,
@@ -121,49 +122,53 @@ export default async function LeadDetailPage({
             )}
           </div>
         </div>
-        <div className="flex gap-2">
-          <LeadFormDialog
-            mode="edit"
-            lead={lead}
-            teams={teams}
-            statuses={statuses}
-            regionsStates={regionsStates}
-            districtsMaster={districtsMaster}
-            isAdmin={isAdmin}
-            defaultTeamId={lead.team_id}
-            currentUserName={profile.full_name || profile.email}
-            trigger={<Button variant="outline">Edit</Button>}
-          />
-          {isAdmin && <DeleteLeadButton leadId={lead.id} />}
-        </div>
+        {canEdit && (
+          <div className="flex gap-2">
+            <LeadFormDialog
+              mode="edit"
+              lead={lead}
+              teams={teams}
+              statuses={statuses}
+              regionsStates={regionsStates}
+              districtsMaster={districtsMaster}
+              isAdmin={isAdmin}
+              defaultTeamId={lead.team_id}
+              currentUserName={profile.full_name || profile.email}
+              trigger={<Button variant="outline">Edit</Button>}
+            />
+            {isAdmin && <DeleteLeadButton leadId={lead.id} />}
+          </div>
+        )}
       </div>
 
       <Card>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-semibold text-neutral-700">Progress</h2>
-            <div className="flex flex-wrap gap-2">
-              {activeStep && (
-                <AddUpdateDialog
+            {canEdit && (
+              <div className="flex flex-wrap gap-2">
+                {activeStep && (
+                  <AddUpdateDialog
+                    leadId={lead.id}
+                    roundId={activeStep.roundId}
+                    roundLabel={activeStep.title}
+                    trigger={
+                      <Button size="sm" variant="outline">
+                        Add update
+                      </Button>
+                    }
+                  />
+                )}
+                <AddRoundDialog
                   leadId={lead.id}
-                  roundId={activeStep.roundId}
-                  roundLabel={activeStep.title}
                   trigger={
                     <Button size="sm" variant="outline">
-                      Add update
+                      Add another round
                     </Button>
                   }
                 />
-              )}
-              <AddRoundDialog
-                leadId={lead.id}
-                trigger={
-                  <Button size="sm" variant="outline">
-                    Add another round
-                  </Button>
-                }
-              />
-            </div>
+              </div>
+            )}
           </div>
           <LeadTimeline steps={timeline} />
 
@@ -230,7 +235,7 @@ export default async function LeadDetailPage({
             </h2>
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={lead.status} />
-              {!lead1Resolved && (
+              {canEdit && !lead1Resolved && (
                 <>
                   <RescheduleDialog
                     leadId={lead.id}
@@ -303,7 +308,7 @@ export default async function LeadDetailPage({
                 </h2>
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge status={round.status} />
-                  {!roundResolved && (
+                  {canEdit && !roundResolved && (
                     <>
                       <RescheduleDialog
                         leadId={lead.id}
@@ -344,29 +349,31 @@ export default async function LeadDetailPage({
                       />
                     </>
                   )}
-                  <EditRoundDialog
-                    roundId={round.id}
-                    leadId={lead.id}
-                    title={`Round ${round.sequence_no}`}
-                    statuses={statuses}
-                    initial={{
-                      title: round.title,
-                      status: round.status,
-                      plannedDate: round.planned_date,
-                      executedDate: round.executed_date,
-                      totalStudents: round.no_of_institutions,
-                      plannedGirlsReach: round.planned_girls_reach,
-                      girlsReached: round.girls_reached,
-                      activityUndertaken: round.activity_undertaken,
-                      driveLink: round.drive_link,
-                      remarks: round.remarks,
-                    }}
-                    trigger={
-                      <Button size="sm" variant="outline">
-                        Edit
-                      </Button>
-                    }
-                  />
+                  {canEdit && (
+                    <EditRoundDialog
+                      roundId={round.id}
+                      leadId={lead.id}
+                      title={`Round ${round.sequence_no}`}
+                      statuses={statuses}
+                      initial={{
+                        title: round.title,
+                        status: round.status,
+                        plannedDate: round.planned_date,
+                        executedDate: round.executed_date,
+                        totalStudents: round.no_of_institutions,
+                        plannedGirlsReach: round.planned_girls_reach,
+                        girlsReached: round.girls_reached,
+                        activityUndertaken: round.activity_undertaken,
+                        driveLink: round.drive_link,
+                        remarks: round.remarks,
+                      }}
+                      trigger={
+                        <Button size="sm" variant="outline">
+                          Edit
+                        </Button>
+                      }
+                    />
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">

@@ -105,9 +105,32 @@ export async function createLead(
   if (!teamId) return { error: "No team selected." };
 
   const fields = leadFieldsFromForm(formData);
+
+  // Every field is mandatory for a newly-created lead except SPOC contact
+  // (contact_person/designation/mobile_no/email_id) — that's deliberately
+  // optional since the pipeline's own "Contact Details Pending"/"Contact
+  // Identified" statuses assume it isn't known yet when a lead is first
+  // logged. updateLead() stays lenient on all of this so old imported leads
+  // with gaps can still be edited incrementally.
   if (!fields.institution_name)
     return { error: "Institution name is required." };
+  if (!fields.region) return { error: "Region is required." };
+  if (!fields.state) return { error: "State is required." };
+  if (!fields.district_city) return { error: "District / City is required." };
+  if (!fields.institution_type)
+    return { error: "Outreach Pillar is required." };
+  if (!fields.institution_channel)
+    return { error: "Outreach Channel is required." };
+  if (!fields.outreach_mode) return { error: "Outreach Mode is required." };
+  if (!fields.planned_activity)
+    return { error: "Outreach Activity is required." };
   if (!fields.planned_date) return { error: "Planned date is required." };
+  if (fields.no_of_institutions == null)
+    return { error: "Total students is required." };
+  if (fields.planned_girls_reach == null)
+    return { error: "Planned girls reach is required." };
+  if (profile.role === "admin" && !fields.responsible_member)
+    return { error: "Responsible member is required." };
 
   // Members always show up as the responsible member for their own leads —
   // fetched from their profile, not typed in. Admins (who may be creating on

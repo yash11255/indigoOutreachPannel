@@ -4,6 +4,7 @@ import { signOut } from "@/lib/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AppNav } from "@/components/app-nav";
+import { ROLE_LABELS } from "@/lib/types";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const profile = await requireProfile();
@@ -20,7 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             >
               Indigo GWF <span className="ml-1 hidden font-normal text-neutral-400 sm:inline">Outreach</span>
             </Link>
-            <AppNav isAdmin={profile.role === "admin"} />
+            <AppNav role={profile.role} teamId={profile.team_id} />
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <Avatar className="h-7 w-7 rounded-none bg-[#0f62fe] text-xs text-white">
@@ -30,7 +31,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </Avatar>
             <div className="hidden text-xs leading-tight sm:block">
               <div className="font-medium text-white">{profile.full_name || profile.email}</div>
-              <div className="text-neutral-400 capitalize">{profile.role}</div>
+              <div className="text-neutral-400">{ROLE_LABELS[profile.role]}</div>
             </div>
             <form action={signOut}>
               <Button

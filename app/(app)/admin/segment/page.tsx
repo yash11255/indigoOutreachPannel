@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireAdmin } from "@/lib/data/session";
+import { requireAdminOrTeamAdmin } from "@/lib/data/session";
 import { getLeads } from "@/lib/data/leads";
 import { getTeams } from "@/lib/data/lookups";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import {
 import { LeadsTable } from "@/components/leads-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { stageForStatus, STAGE_ORDER, STAGE_LABELS } from "@/lib/types";
+import { stageForStatus, STAGE_ORDER, STAGE_LABELS, canEditLeads } from "@/lib/types";
 
 function sum(nums: (number | null)[]) {
   return nums.reduce<number>((acc, n) => acc + (n ?? 0), 0);
@@ -47,8 +47,18 @@ export default async function AdminSegmentPage({
 }: {
   searchParams: Promise<{ region?: string; team?: string; subTeam?: string }>;
 }) {
-  await requireAdmin();
-  const { region, team: teamId, subTeam } = await searchParams;
+  const profile = await requireAdminOrTeamAdmin();
+  const isFullAdmin = profile.role === "admin";
+  const { subTeam } = await searchParams;
+  let { region, team: teamId } = await searchParams;
+
+  // A team_admin only ever sees their own team — region rolls up multiple
+  // teams, so it isn't a meaningful scope for them either. Force both rather
+  // than erroring, so an edited/stale URL just lands them back on their team.
+  if (!isFullAdmin) {
+    region = undefined;
+    teamId = profile.team_id ?? undefined;
+  }
   if (!region && !teamId && !subTeam) notFound();
 
   const [allLeads, teams] = await Promise.all([getLeads(), getTeams()]);
@@ -190,6 +200,7 @@ export default async function AdminSegmentPage({
             leads={leads}
             teams={teams}
             showTeamColumn={!teamId}
+            canEdit={canEditLeads(profile.role)}
             searchable
           />
         </CardContent>

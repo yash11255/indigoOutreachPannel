@@ -9,15 +9,16 @@ test.describe("admin", () => {
       await expect(page.getByText(stage, { exact: true }).first()).toBeVisible();
     }
 
-    // "By team" / "By region" are Card titles (styled <div>s, not semantic headings).
-    await expect(page.getByText("By team", { exact: true })).toBeVisible();
+    // "Team-wise leads" / "By region" are Card titles (styled <div>s, not semantic headings).
+    await expect(page.getByText("Team-wise leads", { exact: true })).toBeVisible();
     await expect(page.getByText("By region", { exact: true })).toBeVisible();
   });
 
   test("users page lists accounts and can create a new member", async ({ page }) => {
     await page.goto("/admin/users");
     await expect(page.getByRole("heading", { name: "Users", exact: true })).toBeVisible();
-    await expect(page.getByRole("table")).toBeVisible();
+    // Two tables live on this page — Teams and All users.
+    await expect(page.getByRole("table").first()).toBeVisible();
     await expect(page.getByText("Create teammate login")).toBeVisible();
   });
 

@@ -37,8 +37,8 @@ export async function createMember(
   const role = String(formData.get("role") ?? "member").trim();
 
   if (!email) return { error: "Email is required." };
-  if (role === "member" && !teamId)
-    return { error: "Team is required for members." };
+  if ((role === "member" || role === "team_admin") && !teamId)
+    return { error: "Team is required for this role." };
 
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return {

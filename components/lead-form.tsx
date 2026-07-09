@@ -62,6 +62,7 @@ export function LeadFormDialog({
   trigger: React.ReactElement;
 }) {
   const [open, setOpen] = useState(false);
+  const isCreate = mode === "create";
   const action = mode === "create" ? createLead : updateLead.bind(null, lead!.id);
   const [state, formAction, pending] = useActionState(action, initialState);
 
@@ -120,9 +121,9 @@ export function LeadFormDialog({
         <form action={formAction} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {isAdmin && (
             <div className="flex flex-col gap-2 sm:col-span-2">
-              <Label>Team</Label>
+              <Label htmlFor="team_id">Team *</Label>
               <Select value={teamId} onValueChange={(v) => setTeamId(v ?? "")}>
-                <SelectTrigger>
+                <SelectTrigger id="team_id">
                   <SelectValue placeholder="Select team">
                     {(value: string) => teams.find((t) => t.id === value)?.name ?? "Select team"}
                   </SelectValue>
@@ -150,9 +151,9 @@ export function LeadFormDialog({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label>Region</Label>
+            <Label htmlFor="region">Region{isCreate ? " *" : ""}</Label>
             <Select value={region} onValueChange={(v) => { setRegion(v ?? ""); setState_(""); }}>
-              <SelectTrigger>
+              <SelectTrigger id="region">
                 <SelectValue placeholder="Select region" />
               </SelectTrigger>
               <SelectContent>
@@ -167,12 +168,12 @@ export function LeadFormDialog({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label>State</Label>
+            <Label htmlFor="state">State{isCreate ? " *" : ""}</Label>
             <Select
               value={state_}
               onValueChange={(v) => { setState_(v ?? ""); setDistrict(""); setDistrictOtherText(""); }}
             >
-              <SelectTrigger>
+              <SelectTrigger id="state">
                 <SelectValue placeholder="Select state" />
               </SelectTrigger>
               <SelectContent>
@@ -187,9 +188,9 @@ export function LeadFormDialog({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label>District / City</Label>
+            <Label htmlFor="district_city">District / City{isCreate ? " *" : ""}</Label>
             <Select value={district} onValueChange={(v) => setDistrict(v ?? "")} disabled={!state_}>
-              <SelectTrigger>
+              <SelectTrigger id="district_city">
                 <SelectValue>
                   {(value: string) => {
                     if (!value) return state_ ? "Select district" : "Select state first";
@@ -242,9 +243,9 @@ export function LeadFormDialog({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label>Outreach Pillar</Label>
+            <Label htmlFor="institution_type">Outreach Pillar{isCreate ? " *" : ""}</Label>
             <Select value={pillar} onValueChange={(v) => setPillar(v ?? "")}>
-              <SelectTrigger>
+              <SelectTrigger id="institution_type">
                 <SelectValue placeholder="Select pillar" />
               </SelectTrigger>
               <SelectContent>
@@ -265,6 +266,7 @@ export function LeadFormDialog({
             defaultValue={lead?.institution_channel}
             placeholder={pillar ? "Select channel" : "Select pillar first"}
             disabled={!pillar}
+            required={isCreate}
           />
 
           <SelectWithOther
@@ -272,24 +274,30 @@ export function LeadFormDialog({
             label="Outreach Mode"
             options={OUTREACH_MODES}
             defaultValue={lead?.outreach_mode}
+            required={isCreate}
           />
 
-          <div className="grid grid-cols-1 gap-4 rounded-md border p-3 sm:col-span-2 sm:grid-cols-3">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="contact_person">Contact person</Label>
-              <Input id="contact_person" name="contact_person" defaultValue={lead?.contact_person ?? ""} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="designation">Designation</Label>
-              <Input id="designation" name="designation" defaultValue={lead?.designation ?? ""} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="mobile_no">Mobile No.</Label>
-              <Input id="mobile_no" name="mobile_no" type="tel" inputMode="tel" defaultValue={lead?.mobile_no ?? ""} />
-            </div>
-            <div className="flex flex-col gap-2 sm:col-span-3">
-              <Label htmlFor="email_id">Email</Label>
-              <Input id="email_id" name="email_id" type="email" inputMode="email" defaultValue={lead?.email_id ?? ""} />
+          <div className="flex flex-col gap-2 rounded-md border p-3 sm:col-span-2">
+            <p className="text-xs text-neutral-400">
+              SPOC contact — optional, fill in once known (a lead can start as &quot;Contact Details Pending&quot;).
+            </p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="contact_person">Contact person</Label>
+                <Input id="contact_person" name="contact_person" defaultValue={lead?.contact_person ?? ""} />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="designation">Designation</Label>
+                <Input id="designation" name="designation" defaultValue={lead?.designation ?? ""} />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="mobile_no">Mobile No.</Label>
+                <Input id="mobile_no" name="mobile_no" type="tel" inputMode="tel" defaultValue={lead?.mobile_no ?? ""} />
+              </div>
+              <div className="flex flex-col gap-2 sm:col-span-3">
+                <Label htmlFor="email_id">Email</Label>
+                <Input id="email_id" name="email_id" type="email" inputMode="email" defaultValue={lead?.email_id ?? ""} />
+              </div>
             </div>
           </div>
 
@@ -298,6 +306,7 @@ export function LeadFormDialog({
             label="Outreach Activity"
             options={OUTREACH_ACTIVITIES}
             defaultValue={lead?.planned_activity}
+            required={isCreate}
           />
           <div className="flex flex-col gap-2">
             <Label htmlFor="planned_date">Planned date *</Label>
@@ -311,12 +320,26 @@ export function LeadFormDialog({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="no_of_institutions">Total students</Label>
-            <Input id="no_of_institutions" name="no_of_institutions" type="number" inputMode="numeric" defaultValue={lead?.no_of_institutions ?? ""} />
+            <Label htmlFor="no_of_institutions">Total students{isCreate ? " *" : ""}</Label>
+            <Input
+              id="no_of_institutions"
+              name="no_of_institutions"
+              type="number"
+              inputMode="numeric"
+              defaultValue={lead?.no_of_institutions ?? ""}
+              required={isCreate}
+            />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="planned_girls_reach">Planned girls reach</Label>
-            <Input id="planned_girls_reach" name="planned_girls_reach" type="number" inputMode="numeric" defaultValue={lead?.planned_girls_reach ?? ""} />
+            <Label htmlFor="planned_girls_reach">Planned girls reach{isCreate ? " *" : ""}</Label>
+            <Input
+              id="planned_girls_reach"
+              name="planned_girls_reach"
+              type="number"
+              inputMode="numeric"
+              defaultValue={lead?.planned_girls_reach ?? ""}
+              required={isCreate}
+            />
           </div>
 
           <div className="flex flex-col gap-2">
@@ -336,8 +359,10 @@ export function LeadFormDialog({
             <input type="hidden" name="status" value={status} />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="responsible_member">Responsible member</Label>
-            {mode === "create" && !isAdmin ? (
+            <Label htmlFor="responsible_member">
+              Responsible member{isCreate ? " *" : ""}
+            </Label>
+            {isCreate && !isAdmin ? (
               <>
                 <Input id="responsible_member" value={currentUserName} disabled />
                 <input type="hidden" name="responsible_member" value={currentUserName} />
@@ -347,6 +372,7 @@ export function LeadFormDialog({
                 id="responsible_member"
                 name="responsible_member"
                 defaultValue={lead?.responsible_member ?? ""}
+                required={isCreate}
               />
             )}
           </div>

@@ -1,4 +1,20 @@
-export type Role = "admin" | "member";
+/**
+ * "team_admin" is a view-only role scoped to one outreach team: they see
+ * every lead on that team (like an admin would) but can't create, edit, or
+ * execute anything, and have no visibility into any other team.
+ */
+export type Role = "admin" | "member" | "team_admin";
+
+export const ROLE_LABELS: Record<Role, string> = {
+  admin: "Admin",
+  member: "Member",
+  team_admin: "Team Admin (view-only)",
+};
+
+/** team_admin is deliberately view-only — see migration 0016. */
+export function canEditLeads(role: Role): boolean {
+  return role !== "team_admin";
+}
 
 export type Profile = {
   id: string;
@@ -52,6 +68,8 @@ export type Lead = {
   remarks: string | null;
   /** Link to a Google Drive folder/file with session photos or other evidence. */
   drive_link: string | null;
+  /** True for bulk-imported leads — grants team-wide access regardless of who it's attributed to, since nobody on the team personally created it through the app. */
+  imported: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -230,3 +248,65 @@ export type CancelInput = {
   status: (typeof CANCEL_STATUSES)[number];
   remarks?: string;
 };
+
+export type MemberBreakdownRow = {
+  member: string;
+  teams: string;
+  total: number;
+  planned: number;
+  inProgress: number;
+  completed: number;
+};
+
+/**
+ * Groups whatever leads the caller can already see (RLS decides that — this
+ * just aggregates) by responsible_member. Used both on the full admin
+ * dashboard (every lead) and on the regular Leads page for anyone seeing more
+ * than just their own leads — a manager with direct reports, a team_admin, or
+ * a regular member once teammates' imported leads become team-visible.
+ */
+export function buildMemberBreakdown(
+  leads: Pick<Lead, "responsible_member" | "team_id" | "status">[],
+  teams: Team[],
+): MemberBreakdownRow[] {
+  const memberMap = new Map<
+    string,
+    {
+      total: number;
+      planned: number;
+      inProgress: number;
+      completed: number;
+      teamIds: Set<string>;
+    }
+  >();
+  for (const l of leads) {
+    const key = l.responsible_member?.trim() || "Unassigned";
+    const entry = memberMap.get(key) ?? {
+      total: 0,
+      planned: 0,
+      inProgress: 0,
+      completed: 0,
+      teamIds: new Set<string>(),
+    };
+    entry.total += 1;
+    entry.teamIds.add(l.team_id);
+    const stage = stageForStatus(l.status);
+    if (stage === "planned") entry.planned += 1;
+    else if (stage === "completed") entry.completed += 1;
+    else if (stage === "outreach_sent" || stage === "scheduled")
+      entry.inProgress += 1;
+    memberMap.set(key, entry);
+  }
+  return Array.from(memberMap.entries())
+    .map(([member, stats]) => ({
+      member,
+      total: stats.total,
+      planned: stats.planned,
+      inProgress: stats.inProgress,
+      completed: stats.completed,
+      teams: Array.from(stats.teamIds)
+        .map((id) => teams.find((t) => t.id === id)?.name ?? "—")
+        .join(", "),
+    }))
+    .sort((a, b) => b.total - a.total);
+}

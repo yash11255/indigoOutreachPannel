@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { requireAdmin } from "@/lib/data/session";
+import { requireAdminOrTeamAdmin } from "@/lib/data/session";
 import { getLeads } from "@/lib/data/leads";
 import { getTeams } from "@/lib/data/lookups";
 import {
@@ -143,11 +143,14 @@ function withinDateRange(lead: Lead, from: string | null, to: string | null): bo
 }
 
 export async function GET(request: Request) {
-  await requireAdmin();
+  const profile = await requireAdminOrTeamAdmin();
+  const isFullAdmin = profile.role === "admin";
 
   const { searchParams } = new URL(request.url);
-  const filterRegion = searchParams.get("region");
-  const filterTeamId = searchParams.get("team");
+  // A team_admin can only ever export their own team — region spans
+  // multiple teams, so that's not a meaningful scope for them either.
+  const filterRegion = isFullAdmin ? searchParams.get("region") : null;
+  const filterTeamId = isFullAdmin ? searchParams.get("team") : profile.team_id;
   const filterSubTeam = searchParams.get("subTeam");
   const filterFrom = parseDateParam(searchParams.get("from"));
   const filterTo = parseDateParam(searchParams.get("to"));

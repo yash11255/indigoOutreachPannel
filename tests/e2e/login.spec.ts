@@ -25,7 +25,9 @@ test.describe("login", () => {
     await page.fill('input[name="password"]', password!);
     await page.click('button[type="submit"]');
     await page.waitForURL("**/leads");
-    await expect(page.getByRole("heading", { name: /leads/i })).toBeVisible();
+    // level: 1 excludes the due-leads banner's own "N leads due..." <h2>, which
+    // also matches /leads/i once there's a nonzero due count.
+    await expect(page.getByRole("heading", { level: 1, name: /leads/i })).toBeVisible();
   });
 
   test("logging in again while already authenticated redirects away from /login", async ({

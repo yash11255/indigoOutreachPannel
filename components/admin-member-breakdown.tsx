@@ -10,15 +10,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { MemberBreakdownRow } from "@/lib/types";
 
-export type MemberBreakdownRow = {
-  member: string;
-  teams: string;
-  total: number;
-  planned: number;
-  inProgress: number;
-  completed: number;
-};
+export type { MemberBreakdownRow };
 
 export function AdminMemberBreakdown({ rows }: { rows: MemberBreakdownRow[] }) {
   const [query, setQuery] = useState("");

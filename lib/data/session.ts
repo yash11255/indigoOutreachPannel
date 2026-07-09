@@ -27,6 +27,13 @@ export async function requireAdmin(): Promise<Profile> {
   return profile;
 }
 
+/** For pages a full admin can browse freely, or a team_admin can browse scoped to their own team. */
+export async function requireAdminOrTeamAdmin(): Promise<Profile> {
+  const profile = await requireProfile();
+  if (profile.role !== "admin" && profile.role !== "team_admin") redirect("/leads");
+  return profile;
+}
+
 /** Same as requireProfile but throws instead of redirecting — for Server Actions. */
 export async function requireProfileForAction(): Promise<Profile> {
   const supabase = await createClient();

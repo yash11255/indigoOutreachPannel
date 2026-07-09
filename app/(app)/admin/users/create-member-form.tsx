@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { createMember, type CreateMemberState } from "@/lib/actions/admin";
-import type { Team } from "@/lib/types";
+import { ROLE_LABELS, type Role, type Team } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,8 +19,9 @@ const initialState: CreateMemberState = {};
 
 export function CreateMemberForm({ teams }: { teams: Team[] }) {
   const [state, formAction, pending] = useActionState(createMember, initialState);
-  const [role, setRole] = useState("member");
+  const [role, setRole] = useState<Role>("member");
   const [teamId, setTeamId] = useState("");
+  const needsTeam = role === "member" || role === "team_admin";
 
   return (
     <Card>
@@ -39,18 +40,24 @@ export function CreateMemberForm({ teams }: { teams: Team[] }) {
           </div>
           <div className="flex flex-col gap-2">
             <Label>Role</Label>
-            <Select value={role} onValueChange={(v) => setRole(v ?? "member")}>
+            <Select value={role} onValueChange={(v) => setRole((v as Role) ?? "member")}>
               <SelectTrigger>
-                <SelectValue>{(value: string) => (value === "admin" ? "Admin" : "Member")}</SelectValue>
+                <SelectValue>{(value: string) => ROLE_LABELS[value as Role]}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="member">Member</SelectItem>
+                <SelectItem value="team_admin">{ROLE_LABELS.team_admin}</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
               </SelectContent>
             </Select>
             <input type="hidden" name="role" value={role} />
+            {role === "team_admin" && (
+              <p className="text-xs text-neutral-500">
+                Can see every lead on their one team, but can&apos;t create, edit, or execute anything.
+              </p>
+            )}
           </div>
-          {role === "member" && (
+          {needsTeam && (
             <div className="flex flex-col gap-2">
               <Label>Outreach team</Label>
               <Select value={teamId} onValueChange={(v) => setTeamId(v ?? "")}>

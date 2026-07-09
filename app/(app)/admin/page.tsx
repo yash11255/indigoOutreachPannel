@@ -23,6 +23,7 @@ import {
   STAGE_LABELS,
   STAGE_ORDER,
   stageForStatus,
+  buildMemberBreakdown,
   type LeadStage,
 } from "@/lib/types";
 
@@ -145,43 +146,7 @@ export default async function AdminPage() {
     regionMap.set(key, entry);
   }
 
-  const memberMap = new Map<
-    string,
-    {
-      total: number;
-      planned: number;
-      inProgress: number;
-      completed: number;
-      teamIds: Set<string>;
-    }
-  >();
-  for (const l of leads) {
-    const key = l.responsible_member?.trim() || "Unassigned";
-    const entry = memberMap.get(key) ?? {
-      total: 0,
-      planned: 0,
-      inProgress: 0,
-      completed: 0,
-      teamIds: new Set<string>(),
-    };
-    entry.total += 1;
-    entry.teamIds.add(l.team_id);
-    const stage = stageForStatus(l.status);
-    if (stage === "planned") entry.planned += 1;
-    else if (stage === "completed") entry.completed += 1;
-    else if (stage === "outreach_sent" || stage === "scheduled")
-      entry.inProgress += 1;
-    memberMap.set(key, entry);
-  }
-  const byMember = Array.from(memberMap.entries())
-    .map(([member, stats]) => ({
-      member,
-      ...stats,
-      teams: Array.from(stats.teamIds)
-        .map((id) => teams.find((t) => t.id === id)?.name ?? "—")
-        .join(", "),
-    }))
-    .sort((a, b) => b.total - a.total);
+  const byMember = buildMemberBreakdown(leads, teams);
 
   return (
     <div className="flex flex-col gap-6">

@@ -5,6 +5,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { LeadsTable } from "@/components/leads-table";
 import { LeadsKanban } from "@/components/leads-kanban";
 import { LeadFormDialog } from "@/components/lead-form";
+import { AdminMemberBreakdown } from "@/components/admin-member-breakdown";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,7 +16,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Lead, RegionState, StatusLookup, Team, DistrictMaster } from "@/lib/types";
+import {
+  buildMemberBreakdown,
+  canEditLeads,
+  type Lead,
+  type RegionState,
+  type StatusLookup,
+  type Team,
+  type DistrictMaster,
+  type Role,
+} from "@/lib/types";
 
 type SortOrder = "planned_desc" | "planned_asc" | "name_asc" | "name_desc";
 
@@ -31,7 +42,7 @@ export function LeadsView({
   statuses,
   regionsStates,
   districtsMaster,
-  isAdmin,
+  role,
   defaultTeamId,
   currentUserName,
 }: {
@@ -40,13 +51,26 @@ export function LeadsView({
   statuses: StatusLookup[];
   regionsStates: RegionState[];
   districtsMaster: DistrictMaster[];
-  isAdmin: boolean;
+  role: Role;
   defaultTeamId: string | null;
   currentUserName: string;
 }) {
+  const isAdmin = role === "admin";
+  const canEdit = canEditLeads(role);
   const [view, setView] = useState("table");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortOrder>("planned_desc");
+
+  // Grouped by responsible_member so a manager (leads include their reports'
+  // via RLS), a team_admin (sees their whole team), or a regular member once
+  // teammates' imported leads become team-visible can see who owns what —
+  // not just a flat list. Full admins already get this on /admin, so skip it
+  // here to avoid showing the same table twice.
+  const memberBreakdown = useMemo(
+    () => buildMemberBreakdown(leads, teams),
+    [leads, teams],
+  );
+  const showMemberBreakdown = !isAdmin && memberBreakdown.length > 1;
 
   const visibleLeads = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -81,18 +105,31 @@ export function LeadsView({
             <TabsTrigger value="kanban">Kanban</TabsTrigger>
           </TabsList>
         </Tabs>
-        <LeadFormDialog
-          mode="create"
-          teams={teams}
-          statuses={statuses}
-          regionsStates={regionsStates}
-          districtsMaster={districtsMaster}
-          isAdmin={isAdmin}
-          defaultTeamId={defaultTeamId}
-          currentUserName={currentUserName}
-          trigger={<Button>New lead</Button>}
-        />
+        {canEdit && (
+          <LeadFormDialog
+            mode="create"
+            teams={teams}
+            statuses={statuses}
+            regionsStates={regionsStates}
+            districtsMaster={districtsMaster}
+            isAdmin={isAdmin}
+            defaultTeamId={defaultTeamId}
+            currentUserName={currentUserName}
+            trigger={<Button>New lead</Button>}
+          />
+        )}
       </div>
+
+      {showMemberBreakdown && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Team members</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AdminMemberBreakdown rows={memberBreakdown} />
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Input
@@ -122,10 +159,20 @@ export function LeadsView({
 
       <Tabs value={view}>
         <TabsContent value="table">
-          <LeadsTable leads={visibleLeads} teams={teams} showTeamColumn={isAdmin} />
+          <LeadsTable
+            leads={visibleLeads}
+            teams={teams}
+            showTeamColumn={isAdmin}
+            canEdit={canEdit}
+          />
         </TabsContent>
         <TabsContent value="kanban">
-          <LeadsKanban leads={visibleLeads} teams={teams} showTeamLabel={isAdmin} />
+          <LeadsKanban
+            leads={visibleLeads}
+            teams={teams}
+            showTeamLabel={isAdmin}
+            canEdit={canEdit}
+          />
         </TabsContent>
       </Tabs>
     </div>

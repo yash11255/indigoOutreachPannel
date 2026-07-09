@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { updateMember } from "@/lib/actions/admin";
-import type { Profile, Team } from "@/lib/types";
+import { ROLE_LABELS, type Profile, type Team } from "@/lib/types";
 import { TableCell, TableRow } from "@/components/ui/table";
 import {
   Select,
@@ -62,17 +62,18 @@ export function MemberRow({
       <TableCell className="text-sm text-neutral-500">{profile.home_team || "—"}</TableCell>
       <TableCell>
         <Select value={role} onValueChange={(v) => setRole((v ?? "member") as Profile["role"])}>
-          <SelectTrigger className="w-32">
-            <SelectValue>{(value: string) => (value === "admin" ? "Admin" : "Member")}</SelectValue>
+          <SelectTrigger className="w-40">
+            <SelectValue>{(value: string) => ROLE_LABELS[value as Profile["role"]]}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="member">Member</SelectItem>
+            <SelectItem value="team_admin">{ROLE_LABELS.team_admin}</SelectItem>
             <SelectItem value="admin">Admin</SelectItem>
           </SelectContent>
         </Select>
       </TableCell>
       <TableCell>
-        {role === "member" ? (
+        {role === "member" || role === "team_admin" ? (
           <Select value={teamId} onValueChange={(v) => setTeamId(v ?? "")}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="No team">

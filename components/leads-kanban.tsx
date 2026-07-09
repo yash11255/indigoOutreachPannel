@@ -13,10 +13,13 @@ export function LeadsKanban({
   leads,
   teams,
   showTeamLabel,
+  canEdit = true,
 }: {
   leads: Lead[];
   teams: Team[];
   showTeamLabel: boolean;
+  /** False for a view-only role (team_admin) — hides the "Mark as executed" action. */
+  canEdit?: boolean;
 }) {
   const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? "—";
 
@@ -62,7 +65,7 @@ export function LeadsKanban({
                     </div>
                     <div>Planned: {lead.planned_date ?? "—"}</div>
                     <StatusBadge status={lead.status} />
-                    {!lead.executed_date && (
+                    {canEdit && !lead.executed_date && (
                       <MoveToExecutionDialog
                         title={lead.institution_name}
                         initialActivityUndertaken={lead.activity_undertaken}

@@ -22,11 +22,14 @@ export function LeadsTable({
   leads: allLeads,
   teams,
   showTeamColumn,
+  canEdit = true,
   searchable,
 }: {
   leads: Lead[];
   teams: Team[];
   showTeamColumn: boolean;
+  /** False for a view-only role (team_admin) — hides the Actions column entirely rather than showing a button that RLS would silently reject. */
+  canEdit?: boolean;
   /** Shows a client-side search box above the list. Off by default so callers that already filter/search upstream (like the main Leads page) don't get a second, redundant box. */
   searchable?: boolean;
 }) {
@@ -131,7 +134,7 @@ export function LeadsTable({
                   <TableHead>Executed date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Stage</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {canEdit && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -168,21 +171,23 @@ export function LeadsTable({
                     <TableCell>
                       <StageBadge status={lead.status} />
                     </TableCell>
-                    <TableCell className="text-right">
-                      {!lead.executed_date && (
-                        <MoveToExecutionDialog
-                          title={lead.institution_name}
-                          initialActivityUndertaken={lead.activity_undertaken}
-                          initialGirlsReached={lead.girls_reached}
-                          onConfirm={markLeadExecuted.bind(null, lead.id)}
-                          trigger={
-                            <Button size="sm" variant="outline">
-                              Mark as executed
-                            </Button>
-                          }
-                        />
-                      )}
-                    </TableCell>
+                    {canEdit && (
+                      <TableCell className="text-right">
+                        {!lead.executed_date && (
+                          <MoveToExecutionDialog
+                            title={lead.institution_name}
+                            initialActivityUndertaken={lead.activity_undertaken}
+                            initialGirlsReached={lead.girls_reached}
+                            onConfirm={markLeadExecuted.bind(null, lead.id)}
+                            trigger={
+                              <Button size="sm" variant="outline">
+                                Mark as executed
+                              </Button>
+                            }
+                          />
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

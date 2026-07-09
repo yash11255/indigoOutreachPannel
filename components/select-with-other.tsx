@@ -24,6 +24,7 @@ export function SelectWithOther({
   defaultValue,
   placeholder,
   disabled,
+  required,
 }: {
   name: string;
   label: string;
@@ -31,6 +32,8 @@ export function SelectWithOther({
   defaultValue?: string | null;
   placeholder?: string;
   disabled?: boolean;
+  /** Purely a visual "*" cue — the hidden input backing this field can't use native HTML validation, so actual enforcement happens server-side. */
+  required?: boolean;
 }) {
   const initialIsOther = !!defaultValue && !options.includes(defaultValue);
   const [selected, setSelected] = useState(initialIsOther ? OTHER_VALUE : (defaultValue ?? ""));
@@ -40,7 +43,10 @@ export function SelectWithOther({
 
   return (
     <div className="flex flex-col gap-2">
-      <Label htmlFor={name}>{label}</Label>
+      <Label htmlFor={name}>
+        {label}
+        {required ? " *" : ""}
+      </Label>
       <Select value={selected} onValueChange={(v) => setSelected(v ?? "")} disabled={disabled}>
         <SelectTrigger id={name}>
           <SelectValue>
