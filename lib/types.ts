@@ -72,7 +72,7 @@ export type Lead = {
   remarks: string | null;
   /** Link to a Google Drive folder/file with session photos or other evidence. */
   drive_link: string | null;
-  /** True for bulk-imported leads — grants team-wide access regardless of who it's attributed to, since nobody on the team personally created it through the app. */
+  /** True for bulk-imported leads. Historically also granted team-wide read/write access regardless of attribution (migration 0015); reverted by migration 0019 — members now only ever see their own leads (or their reports'), so this no longer changes visibility for them. A team_admin's team-wide view (can_view_lead) is unaffected either way. */
   imported: boolean;
   created_at: string;
   updated_at: string;
