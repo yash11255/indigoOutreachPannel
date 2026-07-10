@@ -2,6 +2,12 @@
 
 export function str(v: unknown): string | null {
   if (v === null || v === undefined) return null;
+  // A cell Excel parsed as a date landing in a text column is virtually
+  // always a stray/misplaced value, not a genuine text answer — without
+  // this, String(v) coerces it into a full "Fri Jun 19 2026 23:59:50
+  // GMT+0530..." string, silently garbling whatever the column actually
+  // holds. Use isoDate() instead when a date is genuinely expected here.
+  if (v instanceof Date) return null;
   const s = String(v).trim();
   return s.length ? s : null;
 }

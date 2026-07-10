@@ -17,6 +17,11 @@ describe("str", () => {
   test("stringifies numbers", () => {
     assert.equal(str(42), "42");
   });
+  test("returns null for a stray Date value instead of stringifying it", () => {
+    // A cell Excel parsed as a date landing in a text column (e.g.
+    // "Institution name") is a misplaced value, not a real answer.
+    assert.equal(str(new Date("2026-06-19T18:29:50.000Z")), null);
+  });
 });
 
 describe("num", () => {
