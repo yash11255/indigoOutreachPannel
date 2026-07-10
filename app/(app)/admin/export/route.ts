@@ -155,6 +155,8 @@ export async function GET(request: Request) {
   const filterTeamId = isFullAdmin ? searchParams.get("team") : profile.team_id;
   const filterSubTeam =
     !isFullAdmin && profile.sub_team ? profile.sub_team : searchParams.get("subTeam");
+  const filterState = searchParams.get("state");
+  const filterDistrict = searchParams.get("district");
   const filterFrom = parseDateParam(searchParams.get("from"));
   const filterTo = parseDateParam(searchParams.get("to"));
 
@@ -166,6 +168,8 @@ export async function GET(request: Request) {
       (!filterRegion || l.region === filterRegion) &&
       (!filterTeamId || l.team_id === filterTeamId) &&
       (!filterSubTeam || l.sub_team === filterSubTeam) &&
+      (!filterState || l.state === filterState) &&
+      (!filterDistrict || l.district_city === filterDistrict) &&
       withinDateRange(l, filterFrom, filterTo),
   );
 
@@ -175,7 +179,7 @@ export async function GET(request: Request) {
 
   // ── Report info (cover sheet) ───────────────────────────────────────
   const scopeLine =
-    [filterRegion, filterTeamId && teamName(filterTeamId), filterSubTeam]
+    [filterRegion, filterState, filterDistrict, filterTeamId && teamName(filterTeamId), filterSubTeam]
       .filter(Boolean)
       .join(" — ") || "All teams and regions";
   const dateRangeLine =
@@ -231,13 +235,24 @@ export async function GET(request: Request) {
       (l) => l.region ?? "",
     );
   }
-  addGroupedSummarySheet(
-    workbook,
-    "Summary by state",
-    "State",
-    leads,
-    (l) => l.state ?? "",
-  );
+  if (!filterState) {
+    addGroupedSummarySheet(
+      workbook,
+      "Summary by state",
+      "State",
+      leads,
+      (l) => l.state ?? "",
+    );
+  }
+  if (!filterDistrict) {
+    addGroupedSummarySheet(
+      workbook,
+      "Summary by district",
+      "District / City",
+      leads,
+      (l) => l.district_city ?? "",
+    );
+  }
 
   // ── By stage (matches the dashboard's stat cards) ───────────────────
   const stageSheet = workbook.addWorksheet("By stage");
@@ -324,6 +339,8 @@ export async function GET(request: Request) {
   const buffer = await workbook.xlsx.writeBuffer();
   const scopeParts = [
     filterRegion,
+    filterState,
+    filterDistrict,
     filterTeamId && teamName(filterTeamId),
     filterSubTeam,
     filterFrom,
