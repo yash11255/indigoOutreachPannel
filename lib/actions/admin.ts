@@ -33,6 +33,7 @@ export async function createMember(
 
   const email = String(formData.get("email") ?? "").trim();
   const fullName = String(formData.get("full_name") ?? "").trim();
+  const homeTeam = String(formData.get("home_team") ?? "").trim();
   const teamId = String(formData.get("team_id") ?? "").trim();
   const subTeam = String(formData.get("sub_team") ?? "").trim();
   const role = String(formData.get("role") ?? "member").trim();
@@ -68,6 +69,7 @@ export async function createMember(
     .from("profiles")
     .update({
       full_name: fullName || null,
+      home_team: homeTeam || null,
       team_id: role === "admin" ? null : teamId,
       sub_team: role === "team_admin" ? subTeam || null : null,
       role,
@@ -150,6 +152,7 @@ export async function updateMember(formData: FormData) {
   await requireAdminForAction();
 
   const userId = String(formData.get("user_id") ?? "");
+  const homeTeam = String(formData.get("home_team") ?? "").trim();
   const teamId = String(formData.get("team_id") ?? "").trim();
   const subTeam = String(formData.get("sub_team") ?? "").trim();
   const role = String(formData.get("role") ?? "member").trim();
@@ -163,6 +166,7 @@ export async function updateMember(formData: FormData) {
     .from("profiles")
     .update({
       role,
+      home_team: homeTeam || null,
       team_id: role === "admin" ? null : teamId || null,
       sub_team: role === "team_admin" ? subTeam || null : null,
       manager_id: managerId || null,

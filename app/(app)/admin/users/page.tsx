@@ -14,6 +14,9 @@ export default async function AdminUsersPage() {
     getTeams(),
     getSubTeamsByTeam(),
   ]);
+  const homeTeams = Array.from(
+    new Set(profiles.map((p) => p.home_team).filter((t): t is string => !!t)),
+  ).sort();
 
   return (
     <div className="flex flex-col gap-6">
@@ -24,10 +27,10 @@ export default async function AdminUsersPage() {
           public sign-up — accounts are created here.
         </p>
         <p className="mt-1 text-sm text-neutral-500">
-          <strong>Home team</strong> is their CSR client-account from the
-          Employee Master Data — reference only. <strong>Outreach team</strong>{" "}
-          is which pipeline their leads count toward, and is the one that drives
-          every stat in the app.
+          <strong>Home team</strong> is their CSR client-account or internal
+          department — reference only, doesn&apos;t affect stats.{" "}
+          <strong>Outreach team</strong> is which pipeline their leads count
+          toward, and is the one that drives every stat in the app.
         </p>
       </div>
 
@@ -46,14 +49,19 @@ export default async function AdminUsersPage() {
         </CardContent>
       </Card>
 
-      <CreateMemberForm teams={teams} subTeamsByTeam={subTeamsByTeam} />
+      <CreateMemberForm teams={teams} subTeamsByTeam={subTeamsByTeam} homeTeams={homeTeams} />
 
       <Card>
         <CardHeader>
           <CardTitle>All users</CardTitle>
         </CardHeader>
         <CardContent>
-          <SearchableUsersTable profiles={profiles} teams={teams} subTeamsByTeam={subTeamsByTeam} />
+          <SearchableUsersTable
+            profiles={profiles}
+            teams={teams}
+            subTeamsByTeam={subTeamsByTeam}
+            homeTeams={homeTeams}
+          />
         </CardContent>
       </Card>
     </div>

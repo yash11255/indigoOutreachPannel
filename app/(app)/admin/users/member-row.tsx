@@ -12,23 +12,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 const NO_MANAGER = "__none__";
 const WHOLE_TEAM = "__whole_team__";
+const NO_HOME_TEAM = "__none__";
+const OTHER_HOME_TEAM = "__other__";
 
 export function MemberRow({
   profile,
   teams,
   allProfiles,
   subTeamsByTeam,
+  homeTeams,
 }: {
   profile: Profile;
   teams: Team[];
   allProfiles: Profile[];
   subTeamsByTeam: Record<string, string[]>;
+  homeTeams: string[];
 }) {
   const [role, setRole] = useState(profile.role);
+  const [homeTeam, setHomeTeam] = useState(profile.home_team ?? "");
+  const [homeTeamIsOther, setHomeTeamIsOther] = useState(
+    !!profile.home_team && !homeTeams.includes(profile.home_team),
+  );
   const [teamId, setTeamId] = useState(profile.team_id ?? "");
   const [subTeam, setSubTeam] = useState(profile.sub_team ?? "");
   const [managerId, setManagerId] = useState(profile.manager_id ?? "");
@@ -39,6 +48,7 @@ export function MemberRow({
     const fd = new FormData();
     fd.set("user_id", profile.id);
     fd.set("role", role);
+    fd.set("home_team", homeTeam);
     fd.set("team_id", teamId);
     fd.set("sub_team", subTeam);
     fd.set("manager_id", managerId);
@@ -54,6 +64,7 @@ export function MemberRow({
 
   const dirty =
     role !== profile.role ||
+    homeTeam !== (profile.home_team ?? "") ||
     teamId !== (profile.team_id ?? "") ||
     subTeam !== (profile.sub_team ?? "") ||
     managerId !== (profile.manager_id ?? "");
@@ -66,7 +77,48 @@ export function MemberRow({
     <TableRow>
       <TableCell className="font-medium">{profile.full_name || "—"}</TableCell>
       <TableCell>{profile.email}</TableCell>
-      <TableCell className="text-sm text-neutral-500">{profile.home_team || "—"}</TableCell>
+      <TableCell>
+        <div className="flex flex-col gap-1.5">
+          <Select
+            value={homeTeamIsOther ? OTHER_HOME_TEAM : homeTeam || NO_HOME_TEAM}
+            onValueChange={(v) => {
+              if (v === OTHER_HOME_TEAM) {
+                setHomeTeamIsOther(true);
+              } else {
+                setHomeTeamIsOther(false);
+                setHomeTeam(!v || v === NO_HOME_TEAM ? "" : v);
+              }
+            }}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue>
+                {(value: string) => {
+                  if (value === OTHER_HOME_TEAM) return "Other (specify)";
+                  if (!value || value === NO_HOME_TEAM) return "—";
+                  return value;
+                }}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_HOME_TEAM}>—</SelectItem>
+              {homeTeams.map((h) => (
+                <SelectItem key={h} value={h}>
+                  {h}
+                </SelectItem>
+              ))}
+              <SelectItem value={OTHER_HOME_TEAM}>Other (specify)</SelectItem>
+            </SelectContent>
+          </Select>
+          {homeTeamIsOther && (
+            <Input
+              className="h-8 w-40"
+              value={homeTeam}
+              onChange={(e) => setHomeTeam(e.target.value)}
+              placeholder="Specify…"
+            />
+          )}
+        </div>
+      </TableCell>
       <TableCell>
         <Select value={role} onValueChange={(v) => setRole((v ?? "member") as Profile["role"])}>
           <SelectTrigger className="w-40">

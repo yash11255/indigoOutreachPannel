@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SelectWithOther } from "@/components/select-with-other";
 
 const initialState: CreateMemberState = {};
 const WHOLE_TEAM = "__whole_team__";
@@ -21,9 +22,11 @@ const WHOLE_TEAM = "__whole_team__";
 export function CreateMemberForm({
   teams,
   subTeamsByTeam,
+  homeTeams,
 }: {
   teams: Team[];
   subTeamsByTeam: Record<string, string[]>;
+  homeTeams: string[];
 }) {
   const [state, formAction, pending] = useActionState(createMember, initialState);
   const [role, setRole] = useState<Role>("member");
@@ -47,6 +50,12 @@ export function CreateMemberForm({
             <Label htmlFor="email">Email</Label>
             <Input id="email" name="email" type="email" required />
           </div>
+          <SelectWithOther
+            name="home_team"
+            label="Home team"
+            options={homeTeams}
+            placeholder="Select home team (optional)"
+          />
           <div className="flex flex-col gap-2">
             <Label htmlFor="role">Role</Label>
             <Select value={role} onValueChange={(v) => setRole((v as Role) ?? "member")}>

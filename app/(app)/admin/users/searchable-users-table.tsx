@@ -16,10 +16,12 @@ export function SearchableUsersTable({
   profiles,
   teams,
   subTeamsByTeam,
+  homeTeams,
 }: {
   profiles: Profile[];
   teams: Team[];
   subTeamsByTeam: Record<string, string[]>;
+  homeTeams: string[];
 }) {
   const [query, setQuery] = useState("");
 
@@ -71,6 +73,7 @@ export function SearchableUsersTable({
               teams={teams}
               allProfiles={profiles}
               subTeamsByTeam={subTeamsByTeam}
+              homeTeams={homeTeams}
             />
           ))}
         </TableBody>
