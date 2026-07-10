@@ -142,6 +142,11 @@ function withinDateRange(lead: Lead, from: string | null, to: string | null): bo
   return dates.some((d) => (!from || d >= from) && (!to || d <= to));
 }
 
+/** Same IST-day grouping used by the admin dashboard's "Leads by day" chart. */
+function createdOnDay(createdAt: string): string {
+  return new Date(createdAt).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+}
+
 export async function GET(request: Request) {
   const profile = await requireAdminOrTeamAdmin();
   const isFullAdmin = profile.role === "admin";
@@ -157,6 +162,7 @@ export async function GET(request: Request) {
     !isFullAdmin && profile.sub_team ? profile.sub_team : searchParams.get("subTeam");
   const filterState = searchParams.get("state");
   const filterDistrict = searchParams.get("district");
+  const filterCreatedOn = parseDateParam(searchParams.get("createdOn"));
   const filterFrom = parseDateParam(searchParams.get("from"));
   const filterTo = parseDateParam(searchParams.get("to"));
 
@@ -170,6 +176,7 @@ export async function GET(request: Request) {
       (!filterSubTeam || l.sub_team === filterSubTeam) &&
       (!filterState || l.state === filterState) &&
       (!filterDistrict || l.district_city === filterDistrict) &&
+      (!filterCreatedOn || createdOnDay(l.created_at) === filterCreatedOn) &&
       withinDateRange(l, filterFrom, filterTo),
   );
 
@@ -179,7 +186,14 @@ export async function GET(request: Request) {
 
   // ── Report info (cover sheet) ───────────────────────────────────────
   const scopeLine =
-    [filterRegion, filterState, filterDistrict, filterTeamId && teamName(filterTeamId), filterSubTeam]
+    [
+      filterRegion,
+      filterState,
+      filterDistrict,
+      filterTeamId && teamName(filterTeamId),
+      filterSubTeam,
+      filterCreatedOn && `Created ${filterCreatedOn}`,
+    ]
       .filter(Boolean)
       .join(" — ") || "All teams and regions";
   const dateRangeLine =
@@ -251,6 +265,16 @@ export async function GET(request: Request) {
       "District / City",
       leads,
       (l) => l.district_city ?? "",
+    );
+  }
+  // A day's whole point is "who created these" — always worth its own sheet.
+  if (filterCreatedOn) {
+    addGroupedSummarySheet(
+      workbook,
+      "Summary by member",
+      "Responsible member",
+      leads,
+      (l) => l.responsible_member ?? "",
     );
   }
 
@@ -343,6 +367,7 @@ export async function GET(request: Request) {
     filterDistrict,
     filterTeamId && teamName(filterTeamId),
     filterSubTeam,
+    filterCreatedOn,
     filterFrom,
     filterTo,
   ].filter(Boolean);

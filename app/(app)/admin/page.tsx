@@ -215,8 +215,12 @@ export default async function AdminPage() {
           ) : (
             <div className="flex flex-col gap-1.5">
               {byDay.map((row) => (
-                <div key={row.day} className="flex items-center gap-3 text-sm">
-                  <span className="w-24 shrink-0 text-neutral-500">
+                <Link
+                  key={row.day}
+                  href={`/admin/segment?date=${row.day}`}
+                  className="flex items-center gap-3 text-sm hover:bg-neutral-50"
+                >
+                  <span className="w-24 shrink-0 text-neutral-500 hover:underline">
                     {formatDay(row.day)}
                   </span>
                   <div className="h-4 flex-1 overflow-hidden rounded bg-neutral-100">
@@ -228,7 +232,7 @@ export default async function AdminPage() {
                   <span className="w-10 shrink-0 text-right font-medium tabular-nums">
                     {row.total}
                   </span>
-                </div>
+                </Link>
               ))}
             </div>
           )}

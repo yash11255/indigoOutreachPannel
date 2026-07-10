@@ -13,9 +13,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { LeadsTable } from "@/components/leads-table";
+import { AdminMemberBreakdown } from "@/components/admin-member-breakdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { stageForStatus, STAGE_ORDER, STAGE_LABELS, canEditLeads } from "@/lib/types";
+import {
+  stageForStatus,
+  STAGE_ORDER,
+  STAGE_LABELS,
+  canEditLeads,
+  buildMemberBreakdown,
+} from "@/lib/types";
 
 function sum(nums: (number | null)[]) {
   return nums.reduce<number>((acc, n) => acc + (n ?? 0), 0);
@@ -28,6 +35,7 @@ function segmentHref(params: {
   subTeam?: string;
   state?: string;
   district?: string;
+  date?: string;
 }) {
   const sp = new URLSearchParams();
   if (params.region) sp.set("region", params.region);
@@ -35,7 +43,22 @@ function segmentHref(params: {
   if (params.subTeam) sp.set("subTeam", params.subTeam);
   if (params.state) sp.set("state", params.state);
   if (params.district) sp.set("district", params.district);
+  if (params.date) sp.set("date", params.date);
   return `/admin/segment?${sp.toString()}`;
+}
+
+/** Same IST-day grouping used by the admin dashboard's "Leads by day" chart, so a day's bar and its drill-down agree on exactly which leads count as "that day". */
+function createdOnDay(createdAt: string): string {
+  return new Date(createdAt).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+}
+
+function formatDay(isoDay: string): string {
+  return new Date(`${isoDay}T00:00:00`).toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function groupCount(
@@ -69,11 +92,12 @@ export default async function AdminSegmentPage({
     subTeam?: string;
     state?: string;
     district?: string;
+    date?: string;
   }>;
 }) {
   const profile = await requireAdminOrTeamAdmin();
   const isFullAdmin = profile.role === "admin";
-  const { state, district } = await searchParams;
+  const { state, district, date } = await searchParams;
   let { region, team: teamId, subTeam } = await searchParams;
 
   // A team_admin only ever sees their own team — region rolls up multiple
@@ -88,7 +112,7 @@ export default async function AdminSegmentPage({
     teamId = profile.team_id ?? undefined;
     if (profile.sub_team) subTeam = profile.sub_team;
   }
-  if (!region && !teamId && !subTeam && !state && !district) notFound();
+  if (!region && !teamId && !subTeam && !state && !district && !date) notFound();
 
   const [allLeads, teams] = await Promise.all([getLeads(), getTeams()]);
   const team = teamId ? teams.find((t) => t.id === teamId) : undefined;
@@ -100,11 +124,22 @@ export default async function AdminSegmentPage({
       (!teamId || l.team_id === teamId) &&
       (!subTeam || l.sub_team === subTeam) &&
       (!state || l.state === state) &&
-      (!district || l.district_city === district),
+      (!district || l.district_city === district) &&
+      (!date || createdOnDay(l.created_at) === date),
   );
 
-  const titleParts = [region, state, district, team?.name, subTeam].filter(Boolean);
+  const titleParts = [
+    region,
+    state,
+    district,
+    team?.name,
+    subTeam,
+    date && `Created ${formatDay(date)}`,
+  ].filter(Boolean);
   const title = titleParts.join(" — ") || "All leads";
+
+  // Who created what that day — the whole point of drilling into a date.
+  const byCreator = date ? buildMemberBreakdown(leads, teams) : [];
 
   const stages = STAGE_ORDER.map((stage) => ({
     stage,
@@ -133,6 +168,7 @@ export default async function AdminSegmentPage({
           {subTeam && <input type="hidden" name="subTeam" value={subTeam} />}
           {state && <input type="hidden" name="state" value={state} />}
           {district && <input type="hidden" name="district" value={district} />}
+          {date && <input type="hidden" name="createdOn" value={date} />}
           <div className="flex flex-col gap-1">
             <label htmlFor="export-from" className="text-xs text-neutral-500">
               From
@@ -170,6 +206,23 @@ export default async function AdminSegmentPage({
           </Card>
         ))}
       </div>
+
+      {date && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Who created these</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {byCreator.length === 0 ? (
+              <p className="text-sm text-neutral-500">
+                No leads created on this day match the current filters.
+              </p>
+            ) : (
+              <AdminMemberBreakdown rows={byCreator} />
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {(byState.length > 0 || byDistrict.length > 0) && (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
