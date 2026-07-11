@@ -1,10 +1,11 @@
 "use client";
 
+import { useOptimistic } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/stage-badge";
 import { MoveToExecutionDialog } from "@/components/move-to-execution-dialog";
-import { markLeadExecuted } from "@/lib/actions/leads";
+import { markLeadExecuted, type MarkExecutedInput } from "@/lib/actions/leads";
 import { Button } from "@/components/ui/button";
 import { STAGE_LABELS, STAGE_ORDER, stageForStatus } from "@/lib/types";
 import type { Lead, Team } from "@/lib/types";
@@ -23,10 +24,28 @@ export function LeadsKanban({
 }) {
   const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? "—";
 
+  // With 1000+ leads, revalidating /leads after a mutation can take several
+  // seconds — without this, confirming "Mark as executed" closes the dialog
+  // but the card just sits in its old column with no feedback until the slow
+  // refetch eventually lands, which reads as broken. Move it immediately;
+  // the real data reconciles once the server round-trip finishes.
+  const [optimisticLeads, markExecutedOptimistically] = useOptimistic(
+    leads,
+    (state, leadId: string) =>
+      state.map((l) =>
+        l.id === leadId ? { ...l, status: "Activity Completed" } : l,
+      ),
+  );
+
+  async function handleConfirm(leadId: string, input: MarkExecutedInput) {
+    markExecutedOptimistically(leadId);
+    await markLeadExecuted(leadId, input);
+  }
+
   return (
     <div className="flex gap-4 overflow-x-auto pb-2 md:grid md:grid-cols-5 md:overflow-visible">
       {STAGE_ORDER.map((stage) => {
-        const stageLeads = leads.filter(
+        const stageLeads = optimisticLeads.filter(
           (l) => stageForStatus(l.status) === stage,
         );
         return (
@@ -70,7 +89,7 @@ export function LeadsKanban({
                         title={lead.institution_name}
                         initialActivityUndertaken={lead.activity_undertaken}
                         initialGirlsReached={lead.girls_reached}
-                        onConfirm={markLeadExecuted.bind(null, lead.id)}
+                        onConfirm={(input) => handleConfirm(lead.id, input)}
                         trigger={
                           <Button
                             size="sm"
