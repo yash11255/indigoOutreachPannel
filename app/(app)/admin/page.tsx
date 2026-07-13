@@ -19,6 +19,7 @@ import {
 import { AdminMemberBreakdown } from "@/components/admin-member-breakdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   STAGE_LABELS,
   STAGE_ORDER,
@@ -75,6 +76,8 @@ export default async function AdminPage() {
           institution: l.institution_name,
           member: l.responsible_member,
           status: l.status,
+          plannedDate: l.planned_date,
+          executedDate: l.executed_date,
         }));
 
       const subTeamMap = new Map<
@@ -148,6 +151,99 @@ export default async function AdminPage() {
 
   const byMember = buildMemberBreakdown(leads, teams);
 
+  // Common one-click reports — each just points at /admin/export with a
+  // different preset combination of the same sheet-toggle/stage/date params
+  // the manual form already supports, so there's no separate export logic.
+  const isoDay = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const today = new Date();
+  const weekAgo = new Date(today);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  const quickDownloads: { label: string; href: string }[] = [
+    { label: "Everything (all sheets)", href: "/admin/export" },
+    {
+      label: "Team summary only",
+      href: "/admin/export?includeState=0&includeDistrict=0&includeMember=0",
+    },
+    {
+      label: "State summary only",
+      href: "/admin/export?includeTeam=0&includeDistrict=0&includeMember=0",
+    },
+    {
+      label: "District summary only",
+      href: "/admin/export?includeTeam=0&includeState=0&includeMember=0",
+    },
+    {
+      label: "Team member summary only",
+      href: "/admin/export?includeTeam=0&includeState=0&includeDistrict=0",
+    },
+    {
+      label: "Raw leads only (no summaries)",
+      href: "/admin/export?includeTeam=0&includeState=0&includeDistrict=0&includeMember=0",
+    },
+    {
+      label: "This week",
+      href: `/admin/export?from=${isoDay(weekAgo)}&to=${isoDay(today)}`,
+    },
+    {
+      label: "This month",
+      href: `/admin/export?from=${isoDay(monthStart)}&to=${isoDay(today)}`,
+    },
+    { label: "Completed leads only", href: "/admin/export?stages=completed" },
+    { label: "Planned (not started) only", href: "/admin/export?stages=planned" },
+    {
+      label: "In progress (sent + scheduled)",
+      href: "/admin/export?stages=outreach_sent,scheduled",
+    },
+    {
+      label: "Stalled (no response / rejected)",
+      href: "/admin/export?stages=stalled",
+    },
+    {
+      label: "Inactive users (never logged in)",
+      href: "/admin/export?report=inactive",
+    },
+  ];
+
+  const dimensionOptions: { key: string; label: string }[] = [
+    { key: "team", label: "Team" },
+    { key: "subTeam", label: "Sub-team" },
+    { key: "region", label: "Region" },
+    { key: "state", label: "State" },
+    { key: "district", label: "District / City" },
+    { key: "member", label: "Team Member" },
+    { key: "stage", label: "Stage" },
+  ];
+
+  const columnOptions: { key: string; label: string }[] = [
+    { key: "institution", label: "Institution" },
+    { key: "team", label: "Team" },
+    { key: "subTeam", label: "Sub-team" },
+    { key: "region", label: "Region" },
+    { key: "state", label: "State" },
+    { key: "district", label: "District / City" },
+    { key: "hobli", label: "Hobli / Taluk" },
+    { key: "pillar", label: "Outreach Pillar" },
+    { key: "channel", label: "Outreach Channel" },
+    { key: "mode", label: "Outreach Mode" },
+    { key: "contact", label: "Contact person" },
+    { key: "designation", label: "Designation" },
+    { key: "mobile", label: "Mobile" },
+    { key: "email", label: "Email" },
+    { key: "member", label: "Responsible member" },
+    { key: "plannedActivity", label: "Planned activity" },
+    { key: "plannedDate", label: "Planned date" },
+    { key: "totalStudents", label: "Total students" },
+    { key: "plannedGirls", label: "Planned girls reach" },
+    { key: "executedDate", label: "Executed date" },
+    { key: "activityUndertaken", label: "Activity undertaken" },
+    { key: "girlsReached", label: "Girls reached" },
+    { key: "status", label: "Status" },
+    { key: "driveLink", label: "Drive link" },
+    { key: "remarks", label: "Remarks" },
+  ];
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -180,6 +276,93 @@ export default async function AdminPage() {
           </Button>
         </form>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick downloads</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+            {quickDownloads.map((d) => (
+              <a key={d.label} href={d.href}>
+                <Button variant="outline" className="w-full justify-start text-sm">
+                  {d.label}
+                </Button>
+              </a>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Build a custom sheet</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form action="/admin/export" className="flex flex-col gap-5">
+            <div>
+              <p className="mb-2 text-xs font-medium text-neutral-600">
+                Group by (any combination becomes one sheet, e.g. Team + Team
+                Member gives one row per team/member pair)
+              </p>
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                {dimensionOptions.map((d) => (
+                  <Label key={d.key} className="cursor-pointer font-normal">
+                    <input
+                      type="checkbox"
+                      name="groupBy"
+                      value={d.key}
+                      className="h-3.5 w-3.5"
+                    />
+                    {d.label}
+                  </Label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-medium text-neutral-600">
+                  Columns in the &quot;All leads&quot; sheet
+                </p>
+                <span className="text-xs text-neutral-400">
+                  All checked by default — uncheck any you don&apos;t need
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3 md:grid-cols-4">
+                {columnOptions.map((c) => (
+                  <Label key={c.key} className="cursor-pointer font-normal">
+                    <input
+                      type="checkbox"
+                      name="columns"
+                      value={c.key}
+                      defaultChecked
+                      className="h-3.5 w-3.5"
+                    />
+                    {c.label}
+                  </Label>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-col gap-1">
+                <label htmlFor="custom-from" className="text-xs text-neutral-500">
+                  From
+                </label>
+                <Input id="custom-from" name="from" type="date" className="h-8 w-36" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label htmlFor="custom-to" className="text-xs text-neutral-500">
+                  To
+                </label>
+                <Input id="custom-to" name="to" type="date" className="h-8 w-36" />
+              </div>
+              <Button type="submit">Build &amp; download</Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
         {byStage.map(({ stage, count }) => (

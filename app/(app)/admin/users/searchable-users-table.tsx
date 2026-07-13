@@ -62,6 +62,7 @@ export function SearchableUsersTable({
             <TableHead>Role</TableHead>
             <TableHead>Outreach team</TableHead>
             <TableHead>Manager</TableHead>
+            <TableHead>Secondary manager</TableHead>
             <TableHead className="text-right">Save</TableHead>
           </TableRow>
         </TableHeader>

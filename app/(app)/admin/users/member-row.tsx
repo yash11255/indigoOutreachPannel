@@ -14,8 +14,8 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 
-const NO_MANAGER = "__none__";
 const WHOLE_TEAM = "__whole_team__";
 const NO_HOME_TEAM = "__none__";
 const OTHER_HOME_TEAM = "__other__";
@@ -41,6 +41,9 @@ export function MemberRow({
   const [teamId, setTeamId] = useState(profile.team_id ?? "");
   const [subTeam, setSubTeam] = useState(profile.sub_team ?? "");
   const [managerId, setManagerId] = useState(profile.manager_id ?? "");
+  const [secondaryManagerId, setSecondaryManagerId] = useState(
+    profile.secondary_manager_id ?? "",
+  );
   const [pending, startTransition] = useTransition();
   const subTeamOptions = subTeamsByTeam[teamId] ?? [];
 
@@ -52,6 +55,7 @@ export function MemberRow({
     fd.set("team_id", teamId);
     fd.set("sub_team", subTeam);
     fd.set("manager_id", managerId);
+    fd.set("secondary_manager_id", secondaryManagerId);
     startTransition(async () => {
       try {
         await updateMember(fd);
@@ -67,7 +71,8 @@ export function MemberRow({
     homeTeam !== (profile.home_team ?? "") ||
     teamId !== (profile.team_id ?? "") ||
     subTeam !== (profile.sub_team ?? "") ||
-    managerId !== (profile.manager_id ?? "");
+    managerId !== (profile.manager_id ?? "") ||
+    secondaryManagerId !== (profile.secondary_manager_id ?? "");
 
   const managerCandidates = allProfiles
     .filter((p) => p.id !== profile.id)
@@ -180,28 +185,28 @@ export function MemberRow({
         )}
       </TableCell>
       <TableCell>
-        <Select
-          value={managerId || NO_MANAGER}
-          onValueChange={(v) => setManagerId(!v || v === NO_MANAGER ? "" : v)}
-        >
-          <SelectTrigger className="w-48">
-            <SelectValue>
-              {(value: string) => {
-                if (!value || value === NO_MANAGER) return "No manager";
-                const m = allProfiles.find((p) => p.id === value);
-                return m ? (m.full_name ?? m.email) : "No manager";
-              }}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={NO_MANAGER}>No manager</SelectItem>
-            {managerCandidates.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.full_name ?? p.email}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          value={managerId}
+          onValueChange={setManagerId}
+          placeholder="No manager"
+          options={managerCandidates.map((p) => ({
+            value: p.id,
+            label: p.full_name ?? p.email,
+          }))}
+        />
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-col gap-1">
+          <SearchableSelect
+            value={secondaryManagerId}
+            onValueChange={setSecondaryManagerId}
+            placeholder="No secondary manager"
+            options={managerCandidates
+              .filter((p) => p.id !== managerId)
+              .map((p) => ({ value: p.id, label: p.full_name ?? p.email }))}
+          />
+          <span className="text-xs text-neutral-400">View-only access</span>
+        </div>
       </TableCell>
       <TableCell className="text-right">
         <Button size="sm" onClick={save} disabled={!dirty || pending}>

@@ -32,8 +32,19 @@ export type TeamBreakdownRow = {
     institution: string;
     member: string | null;
     status: string;
+    plannedDate: string | null;
+    executedDate: string | null;
   }[];
 };
+
+function formatDate(iso: string | null) {
+  if (!iso) return null;
+  return new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
 
 function sumRows(rows: TeamBreakdownRow[]) {
   return rows.reduce(
@@ -250,8 +261,14 @@ export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
                           <div className="truncate font-medium">
                             {r.institution}
                           </div>
-                          <div className="text-xs text-neutral-400">
-                            {r.member ?? "—"}
+                          <div className="flex flex-wrap gap-x-2 text-xs text-neutral-400">
+                            <span>{r.member ?? "—"}</span>
+                            {formatDate(r.plannedDate) && (
+                              <span>Planned: {formatDate(r.plannedDate)}</span>
+                            )}
+                            {formatDate(r.executedDate) && (
+                              <span>Executed: {formatDate(r.executedDate)}</span>
+                            )}
                           </div>
                         </div>
                         <StatusBadge status={r.status} />

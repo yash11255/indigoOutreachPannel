@@ -31,6 +31,8 @@ export type Profile = {
   sub_team: string | null;
   /** This person's reporting manager, if set — that manager can see leads this person created, in addition to their own. */
   manager_id: string | null;
+  /** A second, view-only manager — sees this person's leads same as manager_id, but can't edit them (unlike the primary manager). */
+  secondary_manager_id: string | null;
   created_at: string;
 };
 

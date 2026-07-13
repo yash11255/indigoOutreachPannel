@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import { requireAdminOrTeamAdmin } from "@/lib/data/session";
 import { getLeads } from "@/lib/data/leads";
 import { getTeams } from "@/lib/data/lookups";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   STAGE_ORDER,
   STAGE_LABELS,
@@ -73,6 +74,108 @@ function addGroupedSummarySheet(
     });
   }
   sheet.autoFilter = { from: "A1", to: "I1" };
+  styleSheet(sheet);
+}
+
+const DIMENSION_KEYS = [
+  "team",
+  "subTeam",
+  "region",
+  "state",
+  "district",
+  "member",
+  "stage",
+] as const;
+export type DimensionKey = (typeof DIMENSION_KEYS)[number];
+
+const DIMENSION_LABELS: Record<DimensionKey, string> = {
+  team: "Team",
+  subTeam: "Sub-team",
+  region: "Region",
+  state: "State",
+  district: "District / City",
+  member: "Team Member",
+  stage: "Stage",
+};
+
+function dimensionValue(
+  l: Lead,
+  dim: DimensionKey,
+  teamName: (id: string) => string,
+): string {
+  switch (dim) {
+    case "team":
+      return teamName(l.team_id);
+    case "subTeam":
+      return l.sub_team || "(no sub-team)";
+    case "region":
+      return l.region || "Unspecified";
+    case "state":
+      return l.state || "Unspecified";
+    case "district":
+      return l.district_city || "Unspecified";
+    case "member":
+      return l.responsible_member || "Unassigned";
+    case "stage":
+      return STAGE_LABELS[stageForStatus(l.status)];
+  }
+}
+
+/**
+ * One row per unique combination of the chosen dimensions (e.g. Team x Team
+ * Member gives one row per team/member pair actually in use) — a flat
+ * cross-tab rather than a nested outline, so it stays simple to build
+ * correctly and is still fully pivotable/filterable once in Excel.
+ */
+function addCustomCombinationSheet(
+  workbook: ExcelJS.Workbook,
+  dims: DimensionKey[],
+  leads: Lead[],
+  teamName: (id: string) => string,
+) {
+  const sheet = workbook.addWorksheet(
+    `Custom (${dims.map((d) => DIMENSION_LABELS[d]).join(" x ")})`.slice(0, 31),
+  );
+  sheet.columns = [
+    ...dims.map((d, i) => ({ header: DIMENSION_LABELS[d], key: `dim${i}`, width: 22 })),
+    { header: "Total leads", key: "total", width: 12 },
+    { header: "Planned", key: "planned", width: 10 },
+    { header: "Outreach sent", key: "sent", width: 14 },
+    { header: "Scheduled", key: "scheduled", width: 12 },
+    { header: "Completed", key: "completed", width: 12 },
+    { header: "Stalled", key: "stalled", width: 10 },
+    { header: "Planned girls reach", key: "plannedGirls", width: 18 },
+    { header: "Girls reached", key: "girlsReached", width: 14 },
+  ];
+
+  const groups = new Map<string, { values: string[]; rows: Lead[] }>();
+  for (const l of leads) {
+    const values = dims.map((d) => dimensionValue(l, d, teamName));
+    const key = values.join("");
+    const entry = groups.get(key) ?? { values, rows: [] };
+    entry.rows.push(l);
+    groups.set(key, entry);
+  }
+
+  const sorted = Array.from(groups.values()).sort(
+    (a, b) => b.rows.length - a.rows.length,
+  );
+  for (const { values, rows } of sorted) {
+    const stages = stageCounts(rows);
+    const rowData: Record<string, string | number> = {};
+    values.forEach((v, i) => (rowData[`dim${i}`] = v));
+    rowData.total = rows.length;
+    rowData.planned = stages.planned;
+    rowData.sent = stages.outreach_sent;
+    rowData.scheduled = stages.scheduled;
+    rowData.completed = stages.completed;
+    rowData.stalled = stages.stalled;
+    rowData.plannedGirls = sum(rows.map((l) => l.planned_girls_reach));
+    rowData.girlsReached = sum(rows.map((l) => l.girls_reached));
+    sheet.addRow(rowData);
+  }
+  const lastCol = String.fromCharCode(65 + dims.length + 7);
+  sheet.autoFilter = { from: "A1", to: `${lastCol}1` };
   styleSheet(sheet);
 }
 
@@ -164,11 +267,91 @@ function createdOnDay(createdAt: string): string {
   return new Date(createdAt).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 }
 
+/**
+ * Everyone who has never signed in ("inactive" = no last_sign_in_at at all,
+ * from auth.users), grouped by team, with their reporting manager resolved
+ * from profiles.manager_id. Needs the service-role client since last sign-in
+ * only lives in auth.users, which RLS never exposes to a regular session.
+ */
+async function inactiveUsersReport(restrictToTeamId: string | null): Promise<Response> {
+  const admin = createAdminClient();
+  const [{ data: profiles }, teams] = await Promise.all([
+    admin
+      .from("profiles")
+      .select("id, full_name, email, team_id, manager_id, role"),
+    getTeams(),
+  ]);
+
+  const lastSignIn = new Map<string, string | null>();
+  for (let page = 1; ; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error || !data || data.users.length === 0) break;
+    for (const u of data.users) lastSignIn.set(u.id, u.last_sign_in_at ?? null);
+    if (data.users.length < 1000) break;
+  }
+
+  const teamName = (id: string | null) =>
+    teams.find((t) => t.id === id)?.name ?? "(no team)";
+  const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+  const inactive = (profiles ?? [])
+    .filter(
+      (p) =>
+        (!restrictToTeamId || p.team_id === restrictToTeamId) &&
+        !lastSignIn.get(p.id),
+    )
+    .sort(
+      (a, b) =>
+        teamName(a.team_id).localeCompare(teamName(b.team_id)) ||
+        (a.full_name ?? "").localeCompare(b.full_name ?? ""),
+    );
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Indigo GWF Outreach Dashboard";
+  workbook.created = new Date();
+  const sheet = workbook.addWorksheet("Inactive users");
+  sheet.columns = [
+    { header: "Team", key: "team", width: 22 },
+    { header: "Name", key: "name", width: 24 },
+    { header: "Email", key: "email", width: 30 },
+    { header: "Role", key: "role", width: 12 },
+    { header: "Reporting Manager", key: "manager", width: 24 },
+    { header: "Manager Email", key: "managerEmail", width: 30 },
+  ];
+  for (const p of inactive) {
+    const manager = p.manager_id ? profileById.get(p.manager_id) : null;
+    sheet.addRow({
+      team: teamName(p.team_id),
+      name: p.full_name || "(no name)",
+      email: p.email,
+      role: p.role,
+      manager: manager?.full_name || (p.manager_id ? "(unknown)" : "—"),
+      managerEmail: manager?.email || "—",
+    });
+  }
+  sheet.autoFilter = { from: "A1", to: "F1" };
+  styleSheet(sheet);
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  return new Response(buffer, {
+    headers: {
+      "Content-Type":
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="inactive-users-${new Date().toISOString().slice(0, 10)}.xlsx"`,
+    },
+  });
+}
+
 export async function GET(request: Request) {
   const profile = await requireAdminOrTeamAdmin();
   const isFullAdmin = profile.role === "admin";
 
   const { searchParams } = new URL(request.url);
+
+  if (searchParams.get("report") === "inactive") {
+    return inactiveUsersReport(profile.role === "admin" ? null : profile.team_id);
+  }
+
   // A team_admin can only ever export their own team — region spans
   // multiple teams, so that's not a meaningful scope for them either. If
   // they're also scoped to one sub-division, force that too rather than
@@ -186,6 +369,23 @@ export async function GET(request: Request) {
   const includeState = checkboxParam(searchParams, "includeState", true);
   const includeDistrict = checkboxParam(searchParams, "includeDistrict", true);
   const includeMember = checkboxParam(searchParams, "includeMember", true);
+  // Comma-separated stage keys, e.g. "outreach_sent,scheduled" for an
+  // "in progress" preset that spans more than one canonical stage.
+  const filterStages = searchParams.get("stages")?.split(",").filter(Boolean) as
+    | LeadStage[]
+    | undefined;
+  // Custom sheet: any combination of dimensions the user checked. Each
+  // checked box is its own "groupBy=<key>" entry (same name, repeated) —
+  // getAll(), not get()+split(), since a comma-joined single value would
+  // only ever capture the first checkbox a browser sends.
+  const customGroupBy = searchParams.getAll("groupBy") as DimensionKey[];
+  // Column picker for the "All leads" raw sheet, same repeated-param shape.
+  // Omitted entirely (getAll returns []) means "everything" — so a direct
+  // hit on this route without going through the admin page's form still
+  // gets the full sheet it always used to.
+  const columnsParamValues = searchParams.getAll("columns");
+  const selectedColumns =
+    columnsParamValues.length > 0 ? new Set(columnsParamValues) : null;
 
   const [allLeads, teams] = await Promise.all([getLeads(), getTeams()]);
   const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? "—";
@@ -198,6 +398,7 @@ export async function GET(request: Request) {
       (!filterState || l.state === filterState) &&
       (!filterDistrict || l.district_city === filterDistrict) &&
       (!filterCreatedOn || createdOnDay(l.created_at) === filterCreatedOn) &&
+      (!filterStages?.length || filterStages.includes(stageForStatus(l.status))) &&
       withinDateRange(l, filterFrom, filterTo),
   );
 
@@ -214,6 +415,8 @@ export async function GET(request: Request) {
       filterTeamId && teamName(filterTeamId),
       filterSubTeam,
       filterCreatedOn && `Created ${filterCreatedOn}`,
+      filterStages?.length &&
+        `Stage: ${filterStages.map((s) => STAGE_LABELS[s]).join(" + ")}`,
     ]
       .filter(Boolean)
       .join(" — ") || "All teams and regions";
@@ -301,6 +504,11 @@ export async function GET(request: Request) {
     );
   }
 
+  // ── Custom sheet: any combination of dimensions the user picked ─────
+  if (customGroupBy.length > 0) {
+    addCustomCombinationSheet(workbook, customGroupBy, leads, teamName);
+  }
+
   // ── By stage (matches the dashboard's stat cards) ───────────────────
   const stageSheet = workbook.addWorksheet("By stage");
   stageSheet.columns = [
@@ -317,7 +525,7 @@ export async function GET(request: Request) {
 
   // ── Every lead ───────────────────────────────────────────────────────
   const leadsSheet = workbook.addWorksheet("All leads");
-  leadsSheet.columns = [
+  const ALL_LEAD_COLUMNS = [
     { header: "Institution", key: "institution", width: 34 },
     { header: "Team", key: "team", width: 20 },
     { header: "Sub-team", key: "subTeam", width: 20 },
@@ -343,7 +551,13 @@ export async function GET(request: Request) {
     { header: "Status", key: "status", width: 20 },
     { header: "Drive link", key: "driveLink", width: 30 },
     { header: "Remarks", key: "remarks", width: 34 },
-  ];
+  ] as const;
+  // Column picker from the admin page's "All leads columns" checkboxes —
+  // omitted params param means "everything" (unchanged default behaviour).
+  const activeColumns = selectedColumns
+    ? ALL_LEAD_COLUMNS.filter((c) => selectedColumns.has(c.key))
+    : ALL_LEAD_COLUMNS;
+  leadsSheet.columns = activeColumns.map((c) => ({ ...c }));
 
   for (const l of leads) {
     leadsSheet.addRow({
@@ -378,9 +592,18 @@ export async function GET(request: Request) {
       remarks: l.remarks,
     });
   }
-  leadsSheet.getColumn("plannedDate").numFmt = "dd-mmm-yyyy";
-  leadsSheet.getColumn("executedDate").numFmt = "dd-mmm-yyyy";
-  leadsSheet.autoFilter = { from: "A1", to: "Y1" };
+  if (activeColumns.some((c) => c.key === "plannedDate")) {
+    leadsSheet.getColumn("plannedDate").numFmt = "dd-mmm-yyyy";
+  }
+  if (activeColumns.some((c) => c.key === "executedDate")) {
+    leadsSheet.getColumn("executedDate").numFmt = "dd-mmm-yyyy";
+  }
+  if (activeColumns.length > 0) {
+    const lastCol = String.fromCharCode(
+      activeColumns.length <= 26 ? 64 + activeColumns.length : 64,
+    );
+    leadsSheet.autoFilter = { from: "A1", to: `${lastCol}1` };
+  }
   styleSheet(leadsSheet, { freezeFirstColumn: true });
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -393,6 +616,7 @@ export async function GET(request: Request) {
     filterCreatedOn,
     filterFrom,
     filterTo,
+    filterStages?.join("+"),
   ].filter(Boolean);
   const scopeSuffix = scopeParts.length
     ? `-${scopeParts.join("-").replace(/[^a-zA-Z0-9-]+/g, "_")}`

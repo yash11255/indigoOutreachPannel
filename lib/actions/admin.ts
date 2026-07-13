@@ -157,9 +157,16 @@ export async function updateMember(formData: FormData) {
   const subTeam = String(formData.get("sub_team") ?? "").trim();
   const role = String(formData.get("role") ?? "member").trim();
   const managerId = String(formData.get("manager_id") ?? "").trim();
+  const secondaryManagerId = String(
+    formData.get("secondary_manager_id") ?? "",
+  ).trim();
   if (!userId) throw new Error("Missing user id");
   if (managerId === userId)
     throw new Error("A person can't be their own manager.");
+  if (secondaryManagerId === userId)
+    throw new Error("A person can't be their own secondary manager.");
+  if (secondaryManagerId && secondaryManagerId === managerId)
+    throw new Error("Secondary manager must be different from the primary manager.");
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -170,6 +177,7 @@ export async function updateMember(formData: FormData) {
       team_id: role === "admin" ? null : teamId || null,
       sub_team: role === "team_admin" ? subTeam || null : null,
       manager_id: managerId || null,
+      secondary_manager_id: secondaryManagerId || null,
     })
     .eq("id", userId);
 
