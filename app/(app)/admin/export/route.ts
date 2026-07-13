@@ -130,6 +130,23 @@ function parseDateParam(v: string | null): string | null {
 }
 
 /**
+ * Reads a "sheet include" checkbox. Each one is paired with a hidden input
+ * of the same name carrying "0", submitted first — a browser only adds the
+ * checkbox's own "1" when it's checked, so getAll() is "0" when unchecked and
+ * "0","1" when checked. Falls back to defaultValue when the param is missing
+ * entirely (e.g. someone hits this route directly without going through the
+ * segment page's form).
+ */
+function checkboxParam(
+  searchParams: URLSearchParams,
+  name: string,
+  defaultValue: boolean,
+): boolean {
+  const all = searchParams.getAll(name);
+  return all.length === 0 ? defaultValue : all.includes("1");
+}
+
+/**
  * True if a lead's planned or executed date falls within [from, to] (either
  * bound optional). Compared as plain "YYYY-MM-DD" strings — they sort
  * lexicographically the same as chronologically, so this sidesteps any
@@ -165,6 +182,10 @@ export async function GET(request: Request) {
   const filterCreatedOn = parseDateParam(searchParams.get("createdOn"));
   const filterFrom = parseDateParam(searchParams.get("from"));
   const filterTo = parseDateParam(searchParams.get("to"));
+  const includeTeam = checkboxParam(searchParams, "includeTeam", true);
+  const includeState = checkboxParam(searchParams, "includeState", true);
+  const includeDistrict = checkboxParam(searchParams, "includeDistrict", true);
+  const includeMember = checkboxParam(searchParams, "includeMember", true);
 
   const [allLeads, teams] = await Promise.all([getLeads(), getTeams()]);
   const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? "—";
@@ -232,10 +253,11 @@ export async function GET(request: Request) {
     };
   }
 
-  // Skip a breakdown sheet when the export is already filtered down to a
-  // single value on that same dimension — a "by team" sheet with one row
-  // isn't useful once you've already picked a team.
-  if (!filterTeamId) {
+  // Each breakdown is opt-out via its checkbox on the segment page (defaults
+  // checked), and additionally skipped when the export is already filtered
+  // down to a single value on that same dimension — a "by team" sheet with
+  // one row isn't useful once you've already picked a team.
+  if (includeTeam && !filterTeamId) {
     addGroupedSummarySheet(workbook, "Summary by team", "Team", leads, (l) =>
       teamName(l.team_id),
     );
@@ -249,7 +271,7 @@ export async function GET(request: Request) {
       (l) => l.region ?? "",
     );
   }
-  if (!filterState) {
+  if (includeState && !filterState) {
     addGroupedSummarySheet(
       workbook,
       "Summary by state",
@@ -258,7 +280,7 @@ export async function GET(request: Request) {
       (l) => l.state ?? "",
     );
   }
-  if (!filterDistrict) {
+  if (includeDistrict && !filterDistrict) {
     addGroupedSummarySheet(
       workbook,
       "Summary by district",
@@ -267,11 +289,12 @@ export async function GET(request: Request) {
       (l) => l.district_city ?? "",
     );
   }
-  // A day's whole point is "who created these" — always worth its own sheet.
-  if (filterCreatedOn) {
+  // "Who created these" is always worth its own sheet once a single day is
+  // selected, regardless of the checkbox — otherwise it follows the checkbox.
+  if (includeMember || filterCreatedOn) {
     addGroupedSummarySheet(
       workbook,
-      "Summary by member",
+      "Summary by team member",
       "Responsible member",
       leads,
       (l) => l.responsible_member ?? "",

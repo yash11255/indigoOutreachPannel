@@ -14,14 +14,17 @@ import {
 } from "@/components/ui/table";
 import { LeadsTable } from "@/components/leads-table";
 import { AdminMemberBreakdown } from "@/components/admin-member-breakdown";
+import { MemberInstitutionsList } from "@/components/member-institutions-list";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   stageForStatus,
   STAGE_ORDER,
   STAGE_LABELS,
   canEditLeads,
   buildMemberBreakdown,
+  buildMemberInstitutions,
 } from "@/lib/types";
 
 function sum(nums: (number | null)[]) {
@@ -151,6 +154,7 @@ export default async function AdminSegmentPage({
   // you've already drilled into that state.
   const byState = !state ? groupCount(leads, (l) => l.state) : [];
   const byDistrict = !district ? groupCount(leads, (l) => l.district_city) : [];
+  const byMember = buildMemberInstitutions(leads);
 
   return (
     <div className="flex flex-col gap-6">
@@ -162,7 +166,7 @@ export default async function AdminSegmentPage({
             {sum(leads.map((l) => l.girls_reached)).toLocaleString("en-IN")}
           </p>
         </div>
-        <form action="/admin/export" className="flex flex-wrap items-end gap-2">
+        <form action="/admin/export" className="flex flex-wrap items-end gap-4">
           {region && <input type="hidden" name="region" value={region} />}
           {teamId && <input type="hidden" name="team" value={teamId} />}
           {subTeam && <input type="hidden" name="subTeam" value={subTeam} />}
@@ -185,6 +189,31 @@ export default async function AdminSegmentPage({
               To
             </label>
             <Input id="export-to" name="to" type="date" className="h-8 w-36" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-neutral-500">Include sheets</span>
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              <Label className="cursor-pointer font-normal">
+                <input type="hidden" name="includeTeam" value="0" />
+                <input type="checkbox" name="includeTeam" value="1" defaultChecked className="h-3.5 w-3.5" />
+                Team
+              </Label>
+              <Label className="cursor-pointer font-normal">
+                <input type="hidden" name="includeState" value="0" />
+                <input type="checkbox" name="includeState" value="1" defaultChecked className="h-3.5 w-3.5" />
+                State
+              </Label>
+              <Label className="cursor-pointer font-normal">
+                <input type="hidden" name="includeDistrict" value="0" />
+                <input type="checkbox" name="includeDistrict" value="1" defaultChecked className="h-3.5 w-3.5" />
+                District
+              </Label>
+              <Label className="cursor-pointer font-normal">
+                <input type="hidden" name="includeMember" value="0" />
+                <input type="checkbox" name="includeMember" value="1" defaultChecked className="h-3.5 w-3.5" />
+                Team member
+              </Label>
+            </div>
           </div>
           <Button type="submit" variant="outline">
             Download Excel
@@ -311,6 +340,19 @@ export default async function AdminSegmentPage({
           )}
         </div>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>By team member</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <MemberInstitutionsList
+            groups={byMember}
+            teams={teams}
+            showTeamColumn={!teamId}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

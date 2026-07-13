@@ -314,3 +314,26 @@ export function buildMemberBreakdown(
     }))
     .sort((a, b) => b.total - a.total);
 }
+
+export type MemberInstitutionsGroup = {
+  member: string;
+  leads: Lead[];
+};
+
+/**
+ * Same grouping key as buildMemberBreakdown (responsible_member), but keeps
+ * each member's actual leads instead of just counts — for an expand-to-see
+ * "which institutions is this person working" view.
+ */
+export function buildMemberInstitutions(leads: Lead[]): MemberInstitutionsGroup[] {
+  const map = new Map<string, Lead[]>();
+  for (const l of leads) {
+    const key = l.responsible_member?.trim() || "Unassigned";
+    const arr = map.get(key) ?? [];
+    arr.push(l);
+    map.set(key, arr);
+  }
+  return Array.from(map.entries())
+    .map(([member, memberLeads]) => ({ member, leads: memberLeads }))
+    .sort((a, b) => b.leads.length - a.leads.length);
+}
