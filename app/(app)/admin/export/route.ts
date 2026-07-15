@@ -78,23 +78,27 @@ function addGroupedSummarySheet(
 }
 
 const DIMENSION_KEYS = [
+  "date",
   "team",
   "subTeam",
   "region",
   "state",
   "district",
   "member",
+  "institution",
   "stage",
 ] as const;
 export type DimensionKey = (typeof DIMENSION_KEYS)[number];
 
 const DIMENSION_LABELS: Record<DimensionKey, string> = {
+  date: "Planned Date",
   team: "Team",
   subTeam: "Sub-team",
   region: "Region",
   state: "State",
   district: "District / City",
   member: "Team Member",
+  institution: "Institution",
   stage: "Stage",
 };
 
@@ -104,6 +108,8 @@ function dimensionValue(
   teamName: (id: string) => string,
 ): string {
   switch (dim) {
+    case "date":
+      return l.planned_date || "No planned date";
     case "team":
       return teamName(l.team_id);
     case "subTeam":
@@ -116,6 +122,8 @@ function dimensionValue(
       return l.district_city || "Unspecified";
     case "member":
       return l.responsible_member || "Unassigned";
+    case "institution":
+      return l.institution_name || "Unspecified";
     case "stage":
       return STAGE_LABELS[stageForStatus(l.status)];
   }
@@ -157,8 +165,16 @@ function addCustomCombinationSheet(
     groups.set(key, entry);
   }
 
-  const sorted = Array.from(groups.values()).sort(
-    (a, b) => b.rows.length - a.rows.length,
+  // Sort chronologically when Date is one of the picked dimensions (it's
+  // always at its own fixed column position, so a plain lexicographic
+  // compare works — "No planned date" sorts after any real ISO date).
+  // Otherwise, most-common combination first, same as the other sheets.
+  const dateIndex = dims.indexOf("date");
+  const sorted = Array.from(groups.values()).sort((a, b) =>
+    dateIndex === -1
+      ? b.rows.length - a.rows.length
+      : a.values[dateIndex].localeCompare(b.values[dateIndex]) ||
+        b.rows.length - a.rows.length,
   );
   for (const { values, rows } of sorted) {
     const stages = stageCounts(rows);

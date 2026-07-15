@@ -204,15 +204,21 @@ export default async function AdminPage() {
       label: "Inactive users (never logged in)",
       href: "/admin/export?report=inactive",
     },
+    {
+      label: "Date x Team x Sub-team x Member x Institution x Stage",
+      href: "/admin/export?groupBy=date&groupBy=team&groupBy=subTeam&groupBy=member&groupBy=institution&groupBy=stage",
+    },
   ];
 
   const dimensionOptions: { key: string; label: string }[] = [
+    { key: "date", label: "Planned Date" },
     { key: "team", label: "Team" },
     { key: "subTeam", label: "Sub-team" },
     { key: "region", label: "Region" },
     { key: "state", label: "State" },
     { key: "district", label: "District / City" },
     { key: "member", label: "Team Member" },
+    { key: "institution", label: "Institution" },
     { key: "stage", label: "Stage" },
   ];
 
