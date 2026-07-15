@@ -71,8 +71,32 @@ const ACHIEVED_GREEN = "#24a148";
  * glance, expandable to that team's client-account sub-divisions (if any)
  * and a scrollable list of every lead on that team.
  */
+/** Groups a team's leads by responsible member, most leads first. */
+function groupByMember(leads: TeamBreakdownRow["leads"]) {
+  const map = new Map<string, TeamBreakdownRow["leads"]>();
+  for (const l of leads) {
+    const key = l.member?.trim() || "Unassigned";
+    const arr = map.get(key) ?? [];
+    arr.push(l);
+    map.set(key, arr);
+  }
+  return Array.from(map.entries())
+    .map(([member, memberLeads]) => ({ member, leads: memberLeads }))
+    .sort((a, b) => b.leads.length - a.leads.length);
+}
+
 export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const [openMembers, setOpenMembers] = useState<Set<string>>(new Set());
+
+  function toggleMember(key: string) {
+    setOpenMembers((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   if (rows.length === 0) {
     return (
@@ -250,30 +274,59 @@ export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
                       ))}
                     </div>
                   )}
-                  <div className="flex max-h-80 flex-col overflow-y-auto">
-                    {row.leads.map((r) => (
-                      <Link
-                        key={r.id}
-                        href={`/leads/${r.id}`}
-                        className="flex items-center justify-between gap-3 border-t px-4 py-2 text-sm hover:bg-neutral-50"
-                      >
-                        <div className="min-w-0">
-                          <div className="truncate font-medium">
-                            {r.institution}
-                          </div>
-                          <div className="flex flex-wrap gap-x-2 text-xs text-neutral-400">
-                            <span>{r.member ?? "—"}</span>
-                            {formatDate(r.plannedDate) && (
-                              <span>Planned: {formatDate(r.plannedDate)}</span>
-                            )}
-                            {formatDate(r.executedDate) && (
-                              <span>Executed: {formatDate(r.executedDate)}</span>
-                            )}
-                          </div>
+                  <div className="flex max-h-96 flex-col overflow-y-auto border-t">
+                    {groupByMember(row.leads).map(({ member, leads: memberLeads }) => {
+                      const memberKey = `${row.teamId}:${member}`;
+                      const memberOpen = openMembers.has(memberKey);
+                      return (
+                        <div key={member}>
+                          <button
+                            type="button"
+                            onClick={() => toggleMember(memberKey)}
+                            className="flex w-full items-center justify-between gap-2 border-t px-4 py-2 text-left text-sm hover:bg-neutral-50"
+                          >
+                            <span className="flex items-center gap-2 truncate font-medium">
+                              <span
+                                className={`inline-block text-xs text-neutral-400 transition-transform ${memberOpen ? "rotate-90" : ""}`}
+                              >
+                                ▶
+                              </span>
+                              {member}
+                            </span>
+                            <span className="shrink-0 text-xs text-neutral-500">
+                              {memberLeads.length} lead
+                              {memberLeads.length === 1 ? "" : "s"}
+                            </span>
+                          </button>
+                          {memberOpen && (
+                            <div className="flex flex-col gap-1 bg-neutral-50/60 px-4 py-2 pl-9">
+                              {memberLeads.map((r) => (
+                                <Link
+                                  key={r.id}
+                                  href={`/leads/${r.id}`}
+                                  className="flex flex-wrap items-center justify-between gap-2 rounded border border-neutral-100 bg-white px-3 py-1.5 text-sm hover:bg-neutral-100"
+                                >
+                                  <div className="min-w-0">
+                                    <div className="truncate font-medium">
+                                      {r.institution}
+                                    </div>
+                                    <div className="flex flex-wrap gap-x-2 text-xs text-neutral-400">
+                                      {formatDate(r.plannedDate) && (
+                                        <span>Planned: {formatDate(r.plannedDate)}</span>
+                                      )}
+                                      {formatDate(r.executedDate) && (
+                                        <span>Executed: {formatDate(r.executedDate)}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <StatusBadge status={r.status} />
+                                </Link>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        <StatusBadge status={r.status} />
-                      </Link>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
