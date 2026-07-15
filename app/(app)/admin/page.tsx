@@ -208,18 +208,25 @@ export default async function AdminPage() {
       label: "Date x Team x Sub-team x Member x Institution x Stage",
       href: "/admin/export?groupBy=date&groupBy=team&groupBy=subTeam&groupBy=member&groupBy=institution&groupBy=stage",
     },
+    {
+      label: "Created Date x Team x Member x Email x Status",
+      href: "/admin/export?groupBy=createdDate&groupBy=team&groupBy=member&groupBy=memberEmail&groupBy=status",
+    },
   ];
 
   const dimensionOptions: { key: string; label: string }[] = [
     { key: "date", label: "Planned Date" },
+    { key: "createdDate", label: "Created Date" },
     { key: "team", label: "Team" },
     { key: "subTeam", label: "Sub-team" },
     { key: "region", label: "Region" },
     { key: "state", label: "State" },
     { key: "district", label: "District / City" },
     { key: "member", label: "Team Member" },
+    { key: "memberEmail", label: "Team Member Email" },
     { key: "institution", label: "Institution" },
     { key: "stage", label: "Stage" },
+    { key: "status", label: "Status" },
   ];
 
   const columnOptions: { key: string; label: string }[] = [

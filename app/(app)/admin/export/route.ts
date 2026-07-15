@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import { requireAdminOrTeamAdmin } from "@/lib/data/session";
 import { getLeads } from "@/lib/data/leads";
 import { getTeams } from "@/lib/data/lookups";
+import { getAllProfiles } from "@/lib/data/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   STAGE_ORDER,
@@ -79,37 +80,46 @@ function addGroupedSummarySheet(
 
 const DIMENSION_KEYS = [
   "date",
+  "createdDate",
   "team",
   "subTeam",
   "region",
   "state",
   "district",
   "member",
+  "memberEmail",
   "institution",
   "stage",
+  "status",
 ] as const;
 export type DimensionKey = (typeof DIMENSION_KEYS)[number];
 
 const DIMENSION_LABELS: Record<DimensionKey, string> = {
   date: "Planned Date",
+  createdDate: "Created Date",
   team: "Team",
   subTeam: "Sub-team",
   region: "Region",
   state: "State",
   district: "District / City",
   member: "Team Member",
+  memberEmail: "Team Member Email",
   institution: "Institution",
   stage: "Stage",
+  status: "Status",
 };
 
 function dimensionValue(
   l: Lead,
   dim: DimensionKey,
   teamName: (id: string) => string,
+  memberEmailById: Map<string, string>,
 ): string {
   switch (dim) {
     case "date":
       return l.planned_date || "No planned date";
+    case "createdDate":
+      return createdOnDay(l.created_at);
     case "team":
       return teamName(l.team_id);
     case "subTeam":
@@ -122,6 +132,10 @@ function dimensionValue(
       return l.district_city || "Unspecified";
     case "member":
       return l.responsible_member || "Unassigned";
+    case "memberEmail":
+      return (l.created_by && memberEmailById.get(l.created_by)) || "Unknown";
+    case "status":
+      return l.status;
     case "institution":
       return l.institution_name || "Unspecified";
     case "stage":
@@ -140,6 +154,7 @@ function addCustomCombinationSheet(
   dims: DimensionKey[],
   leads: Lead[],
   teamName: (id: string) => string,
+  memberEmailById: Map<string, string>,
 ) {
   const sheet = workbook.addWorksheet(
     `Custom (${dims.map((d) => DIMENSION_LABELS[d]).join(" x ")})`.slice(0, 31),
@@ -158,18 +173,18 @@ function addCustomCombinationSheet(
 
   const groups = new Map<string, { values: string[]; rows: Lead[] }>();
   for (const l of leads) {
-    const values = dims.map((d) => dimensionValue(l, d, teamName));
+    const values = dims.map((d) => dimensionValue(l, d, teamName, memberEmailById));
     const key = values.join("");
     const entry = groups.get(key) ?? { values, rows: [] };
     entry.rows.push(l);
     groups.set(key, entry);
   }
 
-  // Sort chronologically when Date is one of the picked dimensions (it's
+  // Sort chronologically when either date dimension is picked (each is
   // always at its own fixed column position, so a plain lexicographic
   // compare works — "No planned date" sorts after any real ISO date).
   // Otherwise, most-common combination first, same as the other sheets.
-  const dateIndex = dims.indexOf("date");
+  const dateIndex = dims.indexOf("date") !== -1 ? dims.indexOf("date") : dims.indexOf("createdDate");
   const sorted = Array.from(groups.values()).sort((a, b) =>
     dateIndex === -1
       ? b.rows.length - a.rows.length
@@ -403,8 +418,13 @@ export async function GET(request: Request) {
   const selectedColumns =
     columnsParamValues.length > 0 ? new Set(columnsParamValues) : null;
 
-  const [allLeads, teams] = await Promise.all([getLeads(), getTeams()]);
+  const [allLeads, teams, profiles] = await Promise.all([
+    getLeads(),
+    getTeams(),
+    getAllProfiles(),
+  ]);
   const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? "—";
+  const memberEmailById = new Map(profiles.map((p) => [p.id, p.email]));
 
   const leads = allLeads.filter(
     (l) =>
@@ -522,7 +542,7 @@ export async function GET(request: Request) {
 
   // ── Custom sheet: any combination of dimensions the user picked ─────
   if (customGroupBy.length > 0) {
-    addCustomCombinationSheet(workbook, customGroupBy, leads, teamName);
+    addCustomCombinationSheet(workbook, customGroupBy, leads, teamName, memberEmailById);
   }
 
   // ── By stage (matches the dashboard's stat cards) ───────────────────
@@ -543,6 +563,7 @@ export async function GET(request: Request) {
   const leadsSheet = workbook.addWorksheet("All leads");
   const ALL_LEAD_COLUMNS = [
     { header: "Institution", key: "institution", width: 34 },
+    { header: "Created date", key: "createdDate", width: 13 },
     { header: "Team", key: "team", width: 20 },
     { header: "Sub-team", key: "subTeam", width: 20 },
     { header: "Region", key: "region", width: 12 },
@@ -578,6 +599,7 @@ export async function GET(request: Request) {
   for (const l of leads) {
     leadsSheet.addRow({
       institution: l.institution_name,
+      createdDate: new Date(`${createdOnDay(l.created_at)}T00:00:00`),
       team: teamName(l.team_id),
       subTeam: l.sub_team,
       region: l.region,
@@ -607,6 +629,9 @@ export async function GET(request: Request) {
       driveLink: l.drive_link,
       remarks: l.remarks,
     });
+  }
+  if (activeColumns.some((c) => c.key === "createdDate")) {
+    leadsSheet.getColumn("createdDate").numFmt = "dd-mmm-yyyy";
   }
   if (activeColumns.some((c) => c.key === "plannedDate")) {
     leadsSheet.getColumn("plannedDate").numFmt = "dd-mmm-yyyy";
