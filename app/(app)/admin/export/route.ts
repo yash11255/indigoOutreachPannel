@@ -28,13 +28,20 @@ function stageCounts(rows: Lead[]) {
   return stages;
 }
 
-/** Groups leads by a key and writes one summary row per group, in descending total order. */
+/**
+ * Groups leads by a key and writes one summary row per group, in descending
+ * total order. `extraEmptyGroups` — names known to exist (e.g. every team
+ * member on the roster) that should still get a zero row even if they have
+ * no leads at all, so someone who hasn't done anything doesn't just vanish
+ * from the sheet; these always sort to the bottom, alphabetically.
+ */
 function addGroupedSummarySheet(
   workbook: ExcelJS.Workbook,
   sheetName: string,
   columnHeader: string,
   leads: Lead[],
   keyOf: (l: Lead) => string,
+  extraEmptyGroups: string[] = [],
 ) {
   const sheet = workbook.addWorksheet(sheetName);
   sheet.columns = [
@@ -56,10 +63,16 @@ function addGroupedSummarySheet(
     arr.push(l);
     groups.set(key, arr);
   }
+  for (const name of extraEmptyGroups) {
+    if (!groups.has(name)) groups.set(name, []);
+  }
 
-  const sorted = Array.from(groups.entries()).sort(
-    (a, b) => b[1].length - a[1].length,
-  );
+  const sorted = Array.from(groups.entries()).sort((a, b) => {
+    if (a[1].length === 0 && b[1].length === 0) return a[0].localeCompare(b[0]);
+    if (a[1].length === 0) return 1;
+    if (b[1].length === 0) return -1;
+    return b[1].length - a[1].length;
+  });
   for (const [group, rows] of sorted) {
     const stages = stageCounts(rows);
     sheet.addRow({
@@ -531,12 +544,22 @@ export async function GET(request: Request) {
   // "Who created these" is always worth its own sheet once a single day is
   // selected, regardless of the checkbox — otherwise it follows the checkbox.
   if (includeMember || filterCreatedOn) {
+    // Append everyone assigned to the team(s) in scope who has zero leads,
+    // so they still show up (at the bottom) instead of silently vanishing —
+    // skipped for a single-day report, where "who did nothing today" isn't
+    // the point and would just be almost the entire roster.
+    const zeroLeadRoster = filterCreatedOn
+      ? []
+      : profiles
+          .filter((p) => !filterTeamId || p.team_id === filterTeamId)
+          .map((p) => p.full_name || p.email);
     addGroupedSummarySheet(
       workbook,
       "Summary by team member",
       "Responsible member",
       leads,
       (l) => l.responsible_member ?? "",
+      zeroLeadRoster,
     );
   }
 
