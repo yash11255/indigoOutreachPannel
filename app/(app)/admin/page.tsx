@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/data/session";
 import { getLeads } from "@/lib/data/leads";
 import { getTeams } from "@/lib/data/lookups";
+import { getAllProfiles } from "@/lib/data/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -34,7 +35,11 @@ function sum(nums: (number | null)[]) {
 
 export default async function AdminPage() {
   await requireAdmin();
-  const [leads, teams] = await Promise.all([getLeads(), getTeams()]);
+  const [leads, teams, profiles] = await Promise.all([
+    getLeads(),
+    getTeams(),
+    getAllProfiles(),
+  ]);
 
   const byStage = STAGE_ORDER.map((stage) => ({
     stage,
@@ -102,6 +107,10 @@ export default async function AdminPage() {
         .map(([name, stats]) => ({ name, ...stats }))
         .sort((a, b) => b.total - a.total);
 
+      const teamMembers = profiles
+        .filter((p) => p.team_id === row.team.id)
+        .map((p) => ({ name: p.full_name || p.email, email: p.email }));
+
       return {
         teamId: row.team.id,
         teamName: row.team.name,
@@ -112,6 +121,7 @@ export default async function AdminPage() {
         stages,
         subTeams,
         leads: sortedLeads,
+        members: teamMembers,
       };
     })
     .sort((a, b) => b.total - a.total);

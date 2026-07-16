@@ -35,6 +35,8 @@ export type TeamBreakdownRow = {
     plannedDate: string | null;
     executedDate: string | null;
   }[];
+  /** Every profile actually assigned to this team, so someone with zero leads still shows up. */
+  members: { name: string; email: string }[];
 };
 
 function formatDate(iso: string | null) {
@@ -71,8 +73,19 @@ const ACHIEVED_GREEN = "#24a148";
  * glance, expandable to that team's client-account sub-divisions (if any)
  * and a scrollable list of every lead on that team.
  */
-/** Groups a team's leads by responsible member, most leads first. */
-function groupByMember(leads: TeamBreakdownRow["leads"]) {
+/**
+ * Groups a team's leads by responsible member (most leads first), with
+ * every assigned-but-zero-lead profile also included at the end, and email
+ * resolved by matching name — imported leads' free-text responsible_member
+ * won't always match a live profile, so email is blank when it doesn't.
+ */
+function groupByMember(
+  leads: TeamBreakdownRow["leads"],
+  members: TeamBreakdownRow["members"],
+) {
+  const emailByName = new Map(
+    members.map((m) => [m.name.trim().toLowerCase(), m.email]),
+  );
   const map = new Map<string, TeamBreakdownRow["leads"]>();
   for (const l of leads) {
     const key = l.member?.trim() || "Unassigned";
@@ -80,9 +93,22 @@ function groupByMember(leads: TeamBreakdownRow["leads"]) {
     arr.push(l);
     map.set(key, arr);
   }
+  for (const m of members) {
+    if (!map.has(m.name)) map.set(m.name, []);
+  }
   return Array.from(map.entries())
-    .map(([member, memberLeads]) => ({ member, leads: memberLeads }))
-    .sort((a, b) => b.leads.length - a.leads.length);
+    .map(([member, memberLeads]) => ({
+      member,
+      email: emailByName.get(member.trim().toLowerCase()) ?? "",
+      leads: memberLeads,
+    }))
+    .sort((a, b) => {
+      if (a.leads.length === 0 && b.leads.length === 0)
+        return a.member.localeCompare(b.member);
+      if (a.leads.length === 0) return 1;
+      if (b.leads.length === 0) return -1;
+      return b.leads.length - a.leads.length;
+    });
 }
 
 export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
@@ -275,7 +301,8 @@ export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
                     </div>
                   )}
                   <div className="flex max-h-96 flex-col overflow-y-auto border-t">
-                    {groupByMember(row.leads).map(({ member, leads: memberLeads }) => {
+                    {groupByMember(row.leads, row.members).map(
+                      ({ member, email, leads: memberLeads }) => {
                       const memberKey = `${row.teamId}:${member}`;
                       const memberOpen = openMembers.has(memberKey);
                       return (
@@ -283,15 +310,21 @@ export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
                           <button
                             type="button"
                             onClick={() => toggleMember(memberKey)}
-                            className="flex w-full items-center justify-between gap-2 border-t px-4 py-2 text-left text-sm hover:bg-neutral-50"
+                            disabled={memberLeads.length === 0}
+                            className={`flex w-full items-center justify-between gap-2 border-t px-4 py-2 text-left text-sm ${memberLeads.length === 0 ? "text-neutral-400" : "hover:bg-neutral-50"}`}
                           >
-                            <span className="flex items-center gap-2 truncate font-medium">
+                            <span className="flex min-w-0 items-baseline gap-2 truncate font-medium">
                               <span
-                                className={`inline-block text-xs text-neutral-400 transition-transform ${memberOpen ? "rotate-90" : ""}`}
+                                className={`inline-block shrink-0 text-xs text-neutral-400 transition-transform ${memberOpen ? "rotate-90" : ""}`}
                               >
                                 ▶
                               </span>
-                              {member}
+                              <span className="truncate">{member}</span>
+                              {email && (
+                                <span className="truncate text-xs font-normal text-neutral-400">
+                                  {email}
+                                </span>
+                              )}
                             </span>
                             <span className="shrink-0 text-xs text-neutral-500">
                               {memberLeads.length} lead
