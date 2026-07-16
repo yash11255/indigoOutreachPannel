@@ -12,6 +12,35 @@ import {
   type Lead,
 } from "@/lib/types";
 
+const ALL_LEAD_COLUMNS = [
+  { header: "Institution", key: "institution", width: 34 },
+  { header: "Created date", key: "createdDate", width: 13 },
+  { header: "Team", key: "team", width: 20 },
+  { header: "Sub-team", key: "subTeam", width: 20 },
+  { header: "Region", key: "region", width: 12 },
+  { header: "State", key: "state", width: 16 },
+  { header: "District / City", key: "district", width: 18 },
+  { header: "Hobli / Taluk", key: "hobli", width: 16 },
+  { header: "Outreach Pillar", key: "pillar", width: 22 },
+  { header: "Outreach Channel", key: "channel", width: 26 },
+  { header: "Outreach Mode", key: "mode", width: 14 },
+  { header: "Contact person", key: "contact", width: 20 },
+  { header: "Designation", key: "designation", width: 20 },
+  { header: "Mobile", key: "mobile", width: 14 },
+  { header: "Email", key: "email", width: 26 },
+  { header: "Responsible member", key: "member", width: 20 },
+  { header: "Planned activity", key: "plannedActivity", width: 26 },
+  { header: "Planned date", key: "plannedDate", width: 13 },
+  { header: "Total students", key: "totalStudents", width: 13 },
+  { header: "Planned girls reach", key: "plannedGirls", width: 16 },
+  { header: "Executed date", key: "executedDate", width: 13 },
+  { header: "Activity undertaken", key: "activityUndertaken", width: 26 },
+  { header: "Girls reached", key: "girlsReached", width: 13 },
+  { header: "Status", key: "status", width: 20 },
+  { header: "Drive link", key: "driveLink", width: 30 },
+  { header: "Remarks", key: "remarks", width: 34 },
+] as const;
+
 function sum(nums: (number | null)[]) {
   return nums.reduce<number>((acc, n) => acc + (n ?? 0), 0);
 }
@@ -312,6 +341,89 @@ function createdOnDay(createdAt: string): string {
 }
 
 /**
+ * The "All leads" raw-data sheet, with an optional column subset and an
+ * optional "hasn't created anything" section appended at the very bottom of
+ * the same tab — not a separate sheet, since the point is seeing it right
+ * below the leads it's the flip side of.
+ */
+function addAllLeadsSheet(
+  workbook: ExcelJS.Workbook,
+  leads: Lead[],
+  teamName: (id: string) => string,
+  opts: {
+    selectedColumns?: Set<string> | null;
+    zeroLeadUsers?: { name: string; team: string; email: string }[];
+  } = {},
+) {
+  const leadsSheet = workbook.addWorksheet("All leads");
+  const activeColumns = opts.selectedColumns
+    ? ALL_LEAD_COLUMNS.filter((c) => opts.selectedColumns!.has(c.key))
+    : ALL_LEAD_COLUMNS;
+  leadsSheet.columns = activeColumns.map((c) => ({ ...c }));
+
+  for (const l of leads) {
+    leadsSheet.addRow({
+      institution: l.institution_name,
+      createdDate: new Date(`${createdOnDay(l.created_at)}T00:00:00`),
+      team: teamName(l.team_id),
+      subTeam: l.sub_team,
+      region: l.region,
+      state: l.state,
+      district: l.district_city,
+      hobli: l.hobli,
+      pillar: l.institution_type,
+      channel: l.institution_channel,
+      mode: l.outreach_mode,
+      contact: l.contact_person,
+      designation: l.designation,
+      mobile: l.mobile_no,
+      email: l.email_id,
+      member: l.responsible_member,
+      plannedActivity: l.planned_activity,
+      plannedDate: l.planned_date ? new Date(`${l.planned_date}T00:00:00`) : null,
+      totalStudents: l.no_of_institutions,
+      plannedGirls: l.planned_girls_reach,
+      executedDate: l.executed_date ? new Date(`${l.executed_date}T00:00:00`) : null,
+      activityUndertaken: l.activity_undertaken,
+      girlsReached: l.girls_reached,
+      status: l.status,
+      driveLink: l.drive_link,
+      remarks: l.remarks,
+    });
+  }
+  if (activeColumns.some((c) => c.key === "createdDate")) {
+    leadsSheet.getColumn("createdDate").numFmt = "dd-mmm-yyyy";
+  }
+  if (activeColumns.some((c) => c.key === "plannedDate")) {
+    leadsSheet.getColumn("plannedDate").numFmt = "dd-mmm-yyyy";
+  }
+  if (activeColumns.some((c) => c.key === "executedDate")) {
+    leadsSheet.getColumn("executedDate").numFmt = "dd-mmm-yyyy";
+  }
+  if (activeColumns.length > 0) {
+    const lastCol = String.fromCharCode(activeColumns.length <= 26 ? 64 + activeColumns.length : 64);
+    leadsSheet.autoFilter = { from: "A1", to: `${lastCol}1` };
+  }
+  styleSheet(leadsSheet, { freezeFirstColumn: true });
+
+  if (opts.zeroLeadUsers?.length) {
+    leadsSheet.addRow([]);
+    const headerRow = leadsSheet.addRow(["Users who haven't created any leads"]);
+    headerRow.font = { bold: true, size: 12 };
+    const colHeaderRow = leadsSheet.addRow(["Name", "Team", "Email"]);
+    colHeaderRow.font = { bold: true };
+    const sorted = opts.zeroLeadUsers
+      .slice()
+      .sort((a, b) => a.team.localeCompare(b.team) || a.name.localeCompare(b.name));
+    for (const u of sorted) {
+      leadsSheet.addRow([u.name, u.team, u.email]);
+    }
+  }
+
+  return leadsSheet;
+}
+
+/**
  * Everyone who has never signed in ("inactive" = no last_sign_in_at at all,
  * from auth.users), grouped by team, with their reporting manager resolved
  * from profiles.manager_id. Needs the service-role client since last sign-in
@@ -386,6 +498,60 @@ async function inactiveUsersReport(restrictToTeamId: string | null): Promise<Res
   });
 }
 
+/**
+ * One combined workbook: region-wise, district-wise, and team-wise summary
+ * sheets, then the full "All leads" list with everyone who has zero leads
+ * appended at the bottom of that same tab (not a separate sheet).
+ */
+async function masterSheetReport(restrictToTeamId: string | null): Promise<Response> {
+  const [allLeads, teams, profiles] = await Promise.all([
+    getLeads(),
+    getTeams(),
+    getAllProfiles(),
+  ]);
+  const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? "—";
+  const leads = restrictToTeamId
+    ? allLeads.filter((l) => l.team_id === restrictToTeamId)
+    : allLeads;
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Indigo GWF Outreach Dashboard";
+  workbook.created = new Date();
+
+  addGroupedSummarySheet(workbook, "Region-wise leads", "Region", leads, (l) => l.region ?? "");
+  addGroupedSummarySheet(
+    workbook,
+    "District-wise leads",
+    "District / City",
+    leads,
+    (l) => l.district_city ?? "",
+  );
+  if (!restrictToTeamId) {
+    addGroupedSummarySheet(workbook, "Team-wise leads", "Team", leads, (l) => teamName(l.team_id));
+  }
+
+  const scopedProfiles = profiles.filter(
+    (p) => p.team_id && (!restrictToTeamId || p.team_id === restrictToTeamId),
+  );
+  const createdByNames = new Set(
+    leads.map((l) => l.responsible_member?.trim()).filter((n): n is string => !!n),
+  );
+  const zeroLeadUsers = scopedProfiles
+    .filter((p) => !createdByNames.has((p.full_name || p.email).trim()))
+    .map((p) => ({ name: p.full_name || p.email, team: teamName(p.team_id!), email: p.email }));
+
+  addAllLeadsSheet(workbook, leads, teamName, { zeroLeadUsers });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  return new Response(buffer, {
+    headers: {
+      "Content-Type":
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="indigo-gwf-master-sheet-${new Date().toISOString().slice(0, 10)}.xlsx"`,
+    },
+  });
+}
+
 export async function GET(request: Request) {
   const profile = await requireAdminOrTeamAdmin();
   const isFullAdmin = profile.role === "admin";
@@ -394,6 +560,9 @@ export async function GET(request: Request) {
 
   if (searchParams.get("report") === "inactive") {
     return inactiveUsersReport(profile.role === "admin" ? null : profile.team_id);
+  }
+  if (searchParams.get("report") === "master") {
+    return masterSheetReport(profile.role === "admin" ? null : profile.team_id);
   }
 
   // A team_admin can only ever export their own team — region spans
@@ -583,92 +752,7 @@ export async function GET(request: Request) {
   styleSheet(stageSheet);
 
   // ── Every lead ───────────────────────────────────────────────────────
-  const leadsSheet = workbook.addWorksheet("All leads");
-  const ALL_LEAD_COLUMNS = [
-    { header: "Institution", key: "institution", width: 34 },
-    { header: "Created date", key: "createdDate", width: 13 },
-    { header: "Team", key: "team", width: 20 },
-    { header: "Sub-team", key: "subTeam", width: 20 },
-    { header: "Region", key: "region", width: 12 },
-    { header: "State", key: "state", width: 16 },
-    { header: "District / City", key: "district", width: 18 },
-    { header: "Hobli / Taluk", key: "hobli", width: 16 },
-    { header: "Outreach Pillar", key: "pillar", width: 22 },
-    { header: "Outreach Channel", key: "channel", width: 26 },
-    { header: "Outreach Mode", key: "mode", width: 14 },
-    { header: "Contact person", key: "contact", width: 20 },
-    { header: "Designation", key: "designation", width: 20 },
-    { header: "Mobile", key: "mobile", width: 14 },
-    { header: "Email", key: "email", width: 26 },
-    { header: "Responsible member", key: "member", width: 20 },
-    { header: "Planned activity", key: "plannedActivity", width: 26 },
-    { header: "Planned date", key: "plannedDate", width: 13 },
-    { header: "Total students", key: "totalStudents", width: 13 },
-    { header: "Planned girls reach", key: "plannedGirls", width: 16 },
-    { header: "Executed date", key: "executedDate", width: 13 },
-    { header: "Activity undertaken", key: "activityUndertaken", width: 26 },
-    { header: "Girls reached", key: "girlsReached", width: 13 },
-    { header: "Status", key: "status", width: 20 },
-    { header: "Drive link", key: "driveLink", width: 30 },
-    { header: "Remarks", key: "remarks", width: 34 },
-  ] as const;
-  // Column picker from the admin page's "All leads columns" checkboxes —
-  // omitted params param means "everything" (unchanged default behaviour).
-  const activeColumns = selectedColumns
-    ? ALL_LEAD_COLUMNS.filter((c) => selectedColumns.has(c.key))
-    : ALL_LEAD_COLUMNS;
-  leadsSheet.columns = activeColumns.map((c) => ({ ...c }));
-
-  for (const l of leads) {
-    leadsSheet.addRow({
-      institution: l.institution_name,
-      createdDate: new Date(`${createdOnDay(l.created_at)}T00:00:00`),
-      team: teamName(l.team_id),
-      subTeam: l.sub_team,
-      region: l.region,
-      state: l.state,
-      district: l.district_city,
-      hobli: l.hobli,
-      pillar: l.institution_type,
-      channel: l.institution_channel,
-      mode: l.outreach_mode,
-      contact: l.contact_person,
-      designation: l.designation,
-      mobile: l.mobile_no,
-      email: l.email_id,
-      member: l.responsible_member,
-      plannedActivity: l.planned_activity,
-      plannedDate: l.planned_date
-        ? new Date(`${l.planned_date}T00:00:00`)
-        : null,
-      totalStudents: l.no_of_institutions,
-      plannedGirls: l.planned_girls_reach,
-      executedDate: l.executed_date
-        ? new Date(`${l.executed_date}T00:00:00`)
-        : null,
-      activityUndertaken: l.activity_undertaken,
-      girlsReached: l.girls_reached,
-      status: l.status,
-      driveLink: l.drive_link,
-      remarks: l.remarks,
-    });
-  }
-  if (activeColumns.some((c) => c.key === "createdDate")) {
-    leadsSheet.getColumn("createdDate").numFmt = "dd-mmm-yyyy";
-  }
-  if (activeColumns.some((c) => c.key === "plannedDate")) {
-    leadsSheet.getColumn("plannedDate").numFmt = "dd-mmm-yyyy";
-  }
-  if (activeColumns.some((c) => c.key === "executedDate")) {
-    leadsSheet.getColumn("executedDate").numFmt = "dd-mmm-yyyy";
-  }
-  if (activeColumns.length > 0) {
-    const lastCol = String.fromCharCode(
-      activeColumns.length <= 26 ? 64 + activeColumns.length : 64,
-    );
-    leadsSheet.autoFilter = { from: "A1", to: `${lastCol}1` };
-  }
-  styleSheet(leadsSheet, { freezeFirstColumn: true });
+  addAllLeadsSheet(workbook, leads, teamName, { selectedColumns });
 
   const buffer = await workbook.xlsx.writeBuffer();
   const scopeParts = [

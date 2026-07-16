@@ -171,6 +171,7 @@ export default async function AdminPage() {
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
   const quickDownloads: { label: string; href: string }[] = [
+    { label: "Master Sheet (region + district + team + all leads)", href: "/admin/export?report=master" },
     { label: "Everything (all sheets)", href: "/admin/export" },
     {
       label: "Team summary only",
