@@ -212,6 +212,29 @@ export default async function AdminPage() {
       label: "Created Date x Team x Member x Email x Status",
       href: "/admin/export?groupBy=createdDate&groupBy=team&groupBy=member&groupBy=memberEmail&groupBy=status",
     },
+    {
+      label: "Full lead detail (date, team, SPOC, activity, status, location)",
+      href:
+        "/admin/export?" +
+        [
+          "institution",
+          "createdDate",
+          "team",
+          "subTeam",
+          "member",
+          "region",
+          "state",
+          "district",
+          "contact",
+          "mobile",
+          "email",
+          "plannedActivity",
+          "activityUndertaken",
+          "status",
+        ]
+          .map((c) => `columns=${c}`)
+          .join("&"),
+    },
   ];
 
   const dimensionOptions: { key: string; label: string }[] = [
