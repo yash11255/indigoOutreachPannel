@@ -29,6 +29,7 @@ const ALL_LEAD_COLUMNS = [
   { header: "Mobile", key: "mobile", width: 14 },
   { header: "Email", key: "email", width: 26 },
   { header: "Responsible member", key: "member", width: 20 },
+  { header: "Team member email", key: "memberEmail", width: 28 },
   { header: "Planned activity", key: "plannedActivity", width: 26 },
   { header: "Planned date", key: "plannedDate", width: 13 },
   { header: "Total students", key: "totalStudents", width: 13 },
@@ -350,6 +351,7 @@ function addAllLeadsSheet(
   workbook: ExcelJS.Workbook,
   leads: Lead[],
   teamName: (id: string) => string,
+  memberEmailById: Map<string, string>,
   opts: {
     selectedColumns?: Set<string> | null;
     zeroLeadUsers?: { name: string; team: string; email: string }[];
@@ -379,6 +381,7 @@ function addAllLeadsSheet(
       mobile: l.mobile_no,
       email: l.email_id,
       member: l.responsible_member,
+      memberEmail: (l.created_by && memberEmailById.get(l.created_by)) || null,
       plannedActivity: l.planned_activity,
       plannedDate: l.planned_date ? new Date(`${l.planned_date}T00:00:00`) : null,
       totalStudents: l.no_of_institutions,
@@ -510,6 +513,7 @@ async function masterSheetReport(restrictToTeamId: string | null): Promise<Respo
     getAllProfiles(),
   ]);
   const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? "—";
+  const memberEmailById = new Map(profiles.map((p) => [p.id, p.email]));
   const leads = restrictToTeamId
     ? allLeads.filter((l) => l.team_id === restrictToTeamId)
     : allLeads;
@@ -519,6 +523,7 @@ async function masterSheetReport(restrictToTeamId: string | null): Promise<Respo
   workbook.created = new Date();
 
   addGroupedSummarySheet(workbook, "Region-wise leads", "Region", leads, (l) => l.region ?? "");
+  addGroupedSummarySheet(workbook, "State-wise leads", "State", leads, (l) => l.state ?? "");
   addGroupedSummarySheet(
     workbook,
     "District-wise leads",
@@ -529,6 +534,13 @@ async function masterSheetReport(restrictToTeamId: string | null): Promise<Respo
   if (!restrictToTeamId) {
     addGroupedSummarySheet(workbook, "Team-wise leads", "Team", leads, (l) => teamName(l.team_id));
   }
+  addGroupedSummarySheet(
+    workbook,
+    "Sub-team-wise leads",
+    "Sub-team",
+    leads,
+    (l) => l.sub_team ?? "(no sub-team)",
+  );
 
   const scopedProfiles = profiles.filter(
     (p) => p.team_id && (!restrictToTeamId || p.team_id === restrictToTeamId),
@@ -540,7 +552,7 @@ async function masterSheetReport(restrictToTeamId: string | null): Promise<Respo
     .filter((p) => !createdByNames.has((p.full_name || p.email).trim()))
     .map((p) => ({ name: p.full_name || p.email, team: teamName(p.team_id!), email: p.email }));
 
-  addAllLeadsSheet(workbook, leads, teamName, { zeroLeadUsers });
+  addAllLeadsSheet(workbook, leads, teamName, memberEmailById, { zeroLeadUsers });
 
   const buffer = await workbook.xlsx.writeBuffer();
   return new Response(buffer, {
@@ -752,7 +764,7 @@ export async function GET(request: Request) {
   styleSheet(stageSheet);
 
   // ── Every lead ───────────────────────────────────────────────────────
-  addAllLeadsSheet(workbook, leads, teamName, { selectedColumns });
+  addAllLeadsSheet(workbook, leads, teamName, memberEmailById, { selectedColumns });
 
   const buffer = await workbook.xlsx.writeBuffer();
   const scopeParts = [

@@ -171,7 +171,7 @@ export default async function AdminPage() {
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
   const quickDownloads: { label: string; href: string }[] = [
-    { label: "Master Sheet (region + district + team + all leads)", href: "/admin/export?report=master" },
+    { label: "Master Sheet (region + state + district + team + sub-team + all leads)", href: "/admin/export?report=master" },
     { label: "Everything (all sheets)", href: "/admin/export" },
     {
       label: "Team summary only",
@@ -233,6 +233,7 @@ export default async function AdminPage() {
           "team",
           "subTeam",
           "member",
+          "memberEmail",
           "region",
           "state",
           "district",
@@ -265,6 +266,7 @@ export default async function AdminPage() {
 
   const columnOptions: { key: string; label: string }[] = [
     { key: "institution", label: "Institution" },
+    { key: "createdDate", label: "Created date" },
     { key: "team", label: "Team" },
     { key: "subTeam", label: "Sub-team" },
     { key: "region", label: "Region" },
@@ -279,6 +281,7 @@ export default async function AdminPage() {
     { key: "mobile", label: "Mobile" },
     { key: "email", label: "Email" },
     { key: "member", label: "Responsible member" },
+    { key: "memberEmail", label: "Team member email" },
     { key: "plannedActivity", label: "Planned activity" },
     { key: "plannedDate", label: "Planned date" },
     { key: "totalStudents", label: "Total students" },
