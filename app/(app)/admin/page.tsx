@@ -4,19 +4,15 @@ import { getLeads } from "@/lib/data/leads";
 import { getTeams } from "@/lib/data/lookups";
 import { getAllProfiles } from "@/lib/data/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { IndiaMap } from "@/components/india-map";
 import {
   AdminTeamBreakdown,
   type TeamBreakdownRow,
 } from "@/components/admin-team-breakdown";
+import {
+  AdminRegionBreakdown,
+  type RegionBreakdownRow,
+} from "@/components/admin-region-breakdown";
 import { AdminMemberBreakdown } from "@/components/admin-member-breakdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -126,6 +122,63 @@ export default async function AdminPage() {
     })
     .sort((a, b) => b.total - a.total);
 
+  const byRegionRaw = new Map<string, typeof leads>();
+  for (const l of leads) {
+    const key = l.region?.trim() || "Unspecified";
+    const arr = byRegionRaw.get(key) ?? [];
+    arr.push(l);
+    byRegionRaw.set(key, arr);
+  }
+  const regionActivity: RegionBreakdownRow[] = Array.from(byRegionRaw.entries())
+    .map(([region, regionLeads]) => {
+      const stages = emptyStages();
+      for (const l of regionLeads) stages[stageForStatus(l.status)] += 1;
+      const completed = stages.completed;
+
+      const stateMap = new Map<
+        string,
+        { total: number; completed: number; stages: Record<LeadStage, number> }
+      >();
+      for (const l of regionLeads) {
+        const key = l.state?.trim();
+        if (!key) continue;
+        const entry = stateMap.get(key) ?? { total: 0, completed: 0, stages: emptyStages() };
+        entry.total += 1;
+        const stage = stageForStatus(l.status);
+        entry.stages[stage] += 1;
+        if (stage === "completed") entry.completed += 1;
+        stateMap.set(key, entry);
+      }
+      const states = Array.from(stateMap.entries())
+        .map(([name, stats]) => ({ name, ...stats }))
+        .sort((a, b) => b.total - a.total);
+
+      const sortedLeads = regionLeads
+        .slice()
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .map((l) => ({
+          id: l.id,
+          institution: l.institution_name,
+          state: l.state,
+          district: l.district_city,
+          status: l.status,
+          plannedDate: l.planned_date,
+          executedDate: l.executed_date,
+        }));
+
+      return {
+        region,
+        total: regionLeads.length,
+        completed,
+        plannedGirls: sum(regionLeads.map((l) => l.planned_girls_reach)),
+        girlsReached: sum(regionLeads.map((l) => l.girls_reached)),
+        stages,
+        states,
+        leads: sortedLeads,
+      };
+    })
+    .sort((a, b) => b.total - a.total);
+
   const dayMap = new Map<string, { total: number; completed: number }>();
   for (const l of leads) {
     const day = new Date(l.created_at).toLocaleDateString("en-CA", {
@@ -148,15 +201,6 @@ export default async function AdminPage() {
       day: "numeric",
       month: "short",
     });
-  }
-
-  const regionMap = new Map<string, { total: number; completed: number }>();
-  for (const l of leads) {
-    const key = l.region ?? "Unspecified";
-    const entry = regionMap.get(key) ?? { total: 0, completed: 0 };
-    entry.total += 1;
-    if (stageForStatus(l.status) === "completed") entry.completed += 1;
-    regionMap.set(key, entry);
   }
 
   const byMember = buildMemberBreakdown(leads, teams);
@@ -474,38 +518,10 @@ export default async function AdminPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>By region</CardTitle>
+          <CardTitle>Region-wise leads</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Region</TableHead>
-                <TableHead>Total leads</TableHead>
-                <TableHead>Completed</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {Array.from(regionMap.entries()).map(([region, stats]) => (
-                <TableRow key={region}>
-                  <TableCell className="font-medium">
-                    {region === "Unspecified" ? (
-                      region
-                    ) : (
-                      <Link
-                        href={`/admin/segment?region=${encodeURIComponent(region)}`}
-                        className="hover:underline"
-                      >
-                        {region}
-                      </Link>
-                    )}
-                  </TableCell>
-                  <TableCell>{stats.total}</TableCell>
-                  <TableCell>{stats.completed}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <AdminRegionBreakdown rows={regionActivity} />
         </CardContent>
       </Card>
 
