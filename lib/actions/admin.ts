@@ -169,12 +169,20 @@ export async function updateMember(formData: FormData) {
     throw new Error("Secondary manager must be different from the primary manager.");
 
   const supabase = await createClient();
+  const newTeamId = role === "admin" ? null : teamId || null;
+
+  const { data: before } = await supabase
+    .from("profiles")
+    .select("team_id")
+    .eq("id", userId)
+    .single();
+
   const { error } = await supabase
     .from("profiles")
     .update({
       role,
       home_team: homeTeam || null,
-      team_id: role === "admin" ? null : teamId || null,
+      team_id: newTeamId,
       sub_team: role === "team_admin" ? subTeam || null : null,
       manager_id: managerId || null,
       secondary_manager_id: secondaryManagerId || null,
@@ -182,5 +190,17 @@ export async function updateMember(formData: FormData) {
     .eq("id", userId);
 
   if (error) throw new Error(error.message);
+
+  // Moving someone to a different team should carry their existing leads
+  // with them — otherwise past leads stay attributed to a team they're no
+  // longer on: invisible to their new team, stuck reporting under the old
+  // one forever. Skipped when the new team is null (e.g. promoted to
+  // admin) since there's nothing sensible to move those leads to.
+  if (newTeamId && before?.team_id !== newTeamId) {
+    await supabase.from("leads").update({ team_id: newTeamId }).eq("created_by", userId);
+  }
+
   revalidatePath("/admin/users");
+  revalidatePath("/leads");
+  revalidatePath("/admin");
 }
