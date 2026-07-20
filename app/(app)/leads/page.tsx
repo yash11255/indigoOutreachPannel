@@ -1,5 +1,5 @@
 import { requireProfile } from "@/lib/data/session";
-import { getLeads, getDueLeads } from "@/lib/data/leads";
+import { getLeads } from "@/lib/data/leads";
 import { getTeams, getStatuses, getRegionsStates, getDistrictsMaster } from "@/lib/data/lookups";
 import { DueBanner } from "@/components/due-banner";
 import { LeadsView } from "./leads-view";
@@ -14,14 +14,22 @@ export default async function LeadsPage() {
   // they're someone's manager, plus their team — or just one sub-division of
   // it, if they're a view-only team_admin scoped that narrowly; everything
   // for full admins).
-  const [leads, dueLeads, teams, statuses, regionsStates, districtsMaster] = await Promise.all([
+  const [leads, teams, statuses, regionsStates, districtsMaster] = await Promise.all([
     getLeads(),
-    getDueLeads(),
     getTeams(),
     getStatuses(),
     getRegionsStates(),
     getDistrictsMaster(),
   ]);
+
+  // Due = planned but not yet executed, planned_date already arrived — a
+  // strict subset of `leads` (already fetched, already sorted by planned_date
+  // ascending), so this is a plain filter rather than a second full DB round
+  // trip through getDueLeads().
+  const today = new Date().toISOString().slice(0, 10);
+  const dueLeads = leads.filter(
+    (l) => l.planned_date !== null && l.planned_date <= today && l.executed_date === null,
+  );
 
   const heading = isAdmin ? "All leads" : isTeamAdmin ? "Team leads" : "Your leads";
   const subtitle = isTeamAdmin

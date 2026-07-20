@@ -4,6 +4,12 @@ import type { Lead, LeadRound, LeadUpdate } from "@/lib/types";
 /** PostgREST caps a single response at 1000 rows by default — page through in batches so callers always get every matching row, not just the first 1000. */
 const PAGE_SIZE = 1000;
 
+// Tried parallelizing this with an upfront `count: "exact"` query so all
+// pages could fire at once — measured slower in practice, not faster: an
+// exact count under RLS means evaluating the security predicate across the
+// whole table just to get a number, which cost more than the sequential
+// round trip it was meant to save. Reverted; sequential paging stays.
+
 export async function getLeads(filters?: { teamId?: string; status?: string }): Promise<Lead[]> {
   const supabase = await createClient();
   const all: Lead[] = [];
@@ -61,33 +67,6 @@ export async function getLeadUpdates(leadId: string): Promise<LeadUpdate[]> {
     throw new Error(error.message);
   }
   return data ?? [];
-}
-
-/** Leads whose planned date has arrived (today or earlier) but haven't been executed yet — the "due" list. */
-export async function getDueLeads(filters?: { teamId?: string }): Promise<Lead[]> {
-  const supabase = await createClient();
-  const today = new Date().toISOString().slice(0, 10);
-  const all: Lead[] = [];
-  let from = 0;
-
-  while (true) {
-    let query = supabase
-      .from("leads")
-      .select("*")
-      .lte("planned_date", today)
-      .is("executed_date", null)
-      .order("planned_date", { ascending: true })
-      .range(from, from + PAGE_SIZE - 1);
-    if (filters?.teamId) query = query.eq("team_id", filters.teamId);
-
-    const { data, error } = await query;
-    if (error) throw new Error(error.message);
-    all.push(...(data ?? []));
-    if (!data || data.length < PAGE_SIZE) break;
-    from += PAGE_SIZE;
-  }
-
-  return all;
 }
 
 /** Upcoming leads by planned_date or executed_date, for the calendar view. */

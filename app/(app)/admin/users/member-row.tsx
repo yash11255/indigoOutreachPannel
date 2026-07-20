@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { memo, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { updateMember } from "@/lib/actions/admin";
 import { ROLE_LABELS, type Profile, type Team } from "@/lib/types";
@@ -20,7 +20,7 @@ const WHOLE_TEAM = "__whole_team__";
 const NO_HOME_TEAM = "__none__";
 const OTHER_HOME_TEAM = "__other__";
 
-export function MemberRow({
+function MemberRowImpl({
   profile,
   teams,
   allProfiles,
@@ -74,9 +74,12 @@ export function MemberRow({
     managerId !== (profile.manager_id ?? "") ||
     secondaryManagerId !== (profile.secondary_manager_id ?? "");
 
-  const managerCandidates = allProfiles
-    .filter((p) => p.id !== profile.id)
-    .sort((a, b) => (a.full_name ?? a.email).localeCompare(b.full_name ?? b.email));
+  // allProfiles arrives pre-sorted from the parent (once, not per-row) — this
+  // just drops self, cheaply, instead of re-sorting 400+ profiles per row.
+  const managerCandidates = useMemo(
+    () => allProfiles.filter((p) => p.id !== profile.id),
+    [allProfiles, profile.id],
+  );
 
   return (
     <TableRow>
@@ -216,3 +219,8 @@ export function MemberRow({
     </TableRow>
   );
 }
+
+// Memoized so typing in the search box above (which changes which rows are
+// mounted, not each row's own props) doesn't force all 400+ rows to
+// re-render on every keystroke — only rows whose actual props changed do.
+export const MemberRow = memo(MemberRowImpl);

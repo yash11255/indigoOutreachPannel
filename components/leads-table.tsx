@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Table,
@@ -34,17 +34,25 @@ export function LeadsTable({
   searchable?: boolean;
 }) {
   const [query, setQuery] = useState("");
+  // Keeps the input itself responsive while the (expensive, O(n) over every
+  // lead) filter below lags a beat behind on a big list — without this, each
+  // keystroke synchronously re-filters 1000+ rows before the input updates.
+  const deferredQuery = useDeferredValue(query);
   const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? "—";
+  const teamNameById = useMemo(
+    () => new Map(teams.map((t) => [t.id, t.name])),
+    [teams],
+  );
 
   const leads = useMemo(() => {
-    if (!searchable || !query.trim()) return allLeads;
-    const q = query.trim().toLowerCase();
+    if (!searchable || !deferredQuery.trim()) return allLeads;
+    const q = deferredQuery.trim().toLowerCase();
     return allLeads.filter((l) =>
       [
         l.institution_name,
         l.responsible_member,
         l.sub_team,
-        teamName(l.team_id),
+        teamNameById.get(l.team_id),
         l.region,
         l.state,
         l.district_city,
@@ -55,8 +63,7 @@ export function LeadsTable({
         .toLowerCase()
         .includes(q),
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allLeads, query, searchable, teams]);
+  }, [allLeads, deferredQuery, searchable, teamNameById]);
 
   const showSubTeamColumn = leads.some((l) => l.sub_team);
 

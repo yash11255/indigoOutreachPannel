@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -16,14 +16,15 @@ export type { MemberBreakdownRow };
 
 export function AdminMemberBreakdown({ rows }: { rows: MemberBreakdownRow[] }) {
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = deferredQuery.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) =>
       `${r.member} ${r.teams}`.toLowerCase().includes(q),
     );
-  }, [rows, query]);
+  }, [rows, deferredQuery]);
 
   return (
     <div className="flex flex-col gap-3">

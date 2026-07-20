@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import type { Profile, Team } from "@/lib/types";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,22 +24,35 @@ export function SearchableUsersTable({
   homeTeams: string[];
 }) {
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
 
-  const teamName = (id: string | null) =>
-    teams.find((t) => t.id === id)?.name ?? "";
+  const teamNameById = useMemo(
+    () => new Map(teams.map((t) => [t.id, t.name])),
+    [teams],
+  );
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = deferredQuery.trim().toLowerCase();
     if (!q) return profiles;
     return profiles.filter((p) =>
-      [p.full_name, p.email, p.home_team, teamName(p.team_id), p.role]
+      [p.full_name, p.email, p.home_team, teamNameById.get(p.team_id ?? ""), p.role]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
         .includes(q),
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profiles, query, teams]);
+  }, [profiles, deferredQuery, teamNameById]);
+
+  // Sorted once here instead of by every row: each MemberRow used to
+  // filter-and-sort the full profiles list itself, so with 400+ users this
+  // was an O(n log n) sort repeated per row, per render.
+  const sortedProfiles = useMemo(
+    () =>
+      profiles
+        .slice()
+        .sort((a, b) => (a.full_name ?? a.email).localeCompare(b.full_name ?? b.email)),
+    [profiles],
+  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -72,7 +85,7 @@ export function SearchableUsersTable({
               key={p.id}
               profile={p}
               teams={teams}
-              allProfiles={profiles}
+              allProfiles={sortedProfiles}
               subTeamsByTeam={subTeamsByTeam}
               homeTeams={homeTeams}
             />
