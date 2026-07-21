@@ -293,7 +293,7 @@ export default async function AdminPage() {
       href: "/admin/export?stages=outreach_sent,scheduled",
     },
     {
-      label: "Stalled (no response / rejected)",
+      label: "Inactive (no response / rejected)",
       href: "/admin/export?stages=stalled",
     },
     {

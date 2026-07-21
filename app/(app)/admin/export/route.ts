@@ -81,7 +81,7 @@ function addGroupedSummarySheet(
     { header: "Outreach sent", key: "sent", width: 14 },
     { header: "Scheduled", key: "scheduled", width: 12 },
     { header: "Completed", key: "completed", width: 12 },
-    { header: "Stalled", key: "stalled", width: 10 },
+    { header: "Inactive", key: "stalled", width: 10 },
     { header: "Planned girls reach", key: "plannedGirls", width: 18 },
     { header: "Girls reached", key: "girlsReached", width: 14 },
   ];
@@ -209,7 +209,7 @@ function addCustomCombinationSheet(
     { header: "Outreach sent", key: "sent", width: 14 },
     { header: "Scheduled", key: "scheduled", width: 12 },
     { header: "Completed", key: "completed", width: 12 },
-    { header: "Stalled", key: "stalled", width: 10 },
+    { header: "Inactive", key: "stalled", width: 10 },
     { header: "Planned girls reach", key: "plannedGirls", width: 18 },
     { header: "Girls reached", key: "girlsReached", width: 14 },
   ];

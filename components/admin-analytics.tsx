@@ -46,6 +46,8 @@ export type AnalyticsKpis = {
   avgTurnaroundDays: number | null;
   dueTillNow: number;
   upcomingPlanned15Days: number;
+  physicalDueTillNow: number;
+  physicalUpcoming15Days: number;
 };
 
 export type AnalyticsData = {
@@ -172,7 +174,7 @@ export function AdminAnalytics({ data }: { data: AnalyticsData }) {
           achieved
         />
         <KpiCard label="In progress" value={kpis.inProgress.toLocaleString("en-IN")} />
-        <KpiCard label="Stalled" value={kpis.stalled.toLocaleString("en-IN")} />
+        <KpiCard label="Inactive" value={kpis.stalled.toLocaleString("en-IN")} />
         <KpiCard
           label="Avg. turnaround"
           value={kpis.avgTurnaroundDays !== null ? `${kpis.avgTurnaroundDays}d` : "—"}
@@ -212,6 +214,14 @@ export function AdminAnalytics({ data }: { data: AnalyticsData }) {
           label="Total pending outreach"
           value={(kpis.dueTillNow + kpis.upcomingPlanned15Days).toLocaleString("en-IN")}
           sub={`${kpis.dueTillNow.toLocaleString("en-IN")} due till now + ${kpis.upcomingPlanned15Days.toLocaleString("en-IN")} next 15 days`}
+        />
+        <KpiCard
+          label="Physical outreach — due till now"
+          value={kpis.physicalDueTillNow.toLocaleString("en-IN")}
+        />
+        <KpiCard
+          label="Physical outreach — next 15 days"
+          value={kpis.physicalUpcoming15Days.toLocaleString("en-IN")}
         />
       </div>
 

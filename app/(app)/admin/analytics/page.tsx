@@ -280,8 +280,18 @@ export default async function AdminAnalyticsPage() {
   }
   const upcomingPlanned15Days = cumulative;
 
+  // Covers "Physical" plus the spelling variants seen in the source data
+  // ("Phyical", "physical") without touching the raw outreach_mode values.
+  const isPhysicalMode = (mode: string | null) => !!mode && /phy?s?ical/i.test(mode);
+  const next15EndIso = upcoming15Days[upcoming15Days.length - 1]?.date ?? todayIso;
+  const stillDuePhysical = stillDue.filter((l) => isPhysicalMode(l.outreach_mode));
+  const physicalDueTillNow = stillDuePhysical.filter((l) => l.planned_date! < todayIso).length;
+  const physicalUpcoming15Days = stillDuePhysical.filter(
+    (l) => l.planned_date! >= todayIso && l.planned_date! <= next15EndIso,
+  ).length;
+
   const data: AnalyticsData = {
-    kpis: { ...kpis, dueTillNow, upcomingPlanned15Days },
+    kpis: { ...kpis, dueTillNow, upcomingPlanned15Days, physicalDueTillNow, physicalUpcoming15Days },
     stageDistribution,
     monthlyTrend,
     upcoming15Days,

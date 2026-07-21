@@ -237,7 +237,7 @@ export const STAGE_LABELS: Record<LeadStage, string> = {
   outreach_sent: "Outreach Sent",
   scheduled: "Scheduled",
   completed: "Completed",
-  stalled: "Stalled",
+  stalled: "Inactive",
 };
 
 export const STAGE_ORDER: LeadStage[] = [
