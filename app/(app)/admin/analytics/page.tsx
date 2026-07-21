@@ -247,10 +247,44 @@ export default async function AdminAnalyticsPage() {
     inactive: kpis.totalMembers - kpis.activeMembers,
   };
 
+  // "Due till now" mirrors the /leads page's due-banner definition (planned,
+  // not yet executed, planned_date already passed). "Next 15 days" is the
+  // forward-looking window the admin actually asked to see, day by day.
+  const todayIso = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const NEXT_DAYS = 15;
+  const stillDue = leads.filter(
+    (l) => l.planned_date !== null && l.executed_date === null,
+  );
+  const dueTillNow = stillDue.filter((l) => l.planned_date! < todayIso).length;
+
+  const dayCountMap = new Map<string, number>();
+  for (const l of stillDue) {
+    if (l.planned_date! < todayIso) continue;
+    dayCountMap.set(l.planned_date!, (dayCountMap.get(l.planned_date!) ?? 0) + 1);
+  }
+  let cumulative = 0;
+  const upcoming15Days: { date: string; label: string; count: number; cumulative: number }[] =
+    [];
+  for (let i = 0; i < NEXT_DAYS; i++) {
+    const d = new Date(`${todayIso}T00:00:00`);
+    d.setDate(d.getDate() + i);
+    const dateKey = d.toLocaleDateString("en-CA");
+    const count = dayCountMap.get(dateKey) ?? 0;
+    cumulative += count;
+    upcoming15Days.push({
+      date: dateKey,
+      label: d.toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+      count,
+      cumulative,
+    });
+  }
+  const upcomingPlanned15Days = cumulative;
+
   const data: AnalyticsData = {
-    kpis,
+    kpis: { ...kpis, dueTillNow, upcomingPlanned15Days },
     stageDistribution,
     monthlyTrend,
+    upcoming15Days,
     teamStages,
     teamCompletion,
     regionTotals,

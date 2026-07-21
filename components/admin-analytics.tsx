@@ -14,6 +14,7 @@ import {
   CartesianGrid,
   LineChart,
   Line,
+  ComposedChart,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { STAGE_LABELS, type LeadStage } from "@/lib/types";
@@ -43,12 +44,15 @@ export type AnalyticsKpis = {
   activeMembers: number;
   totalMembers: number;
   avgTurnaroundDays: number | null;
+  dueTillNow: number;
+  upcomingPlanned15Days: number;
 };
 
 export type AnalyticsData = {
   kpis: AnalyticsKpis;
   stageDistribution: { stage: LeadStage; label: string; value: number }[];
   monthlyTrend: { month: string; label: string; created: number; completed: number }[];
+  upcoming15Days: { date: string; label: string; count: number; cumulative: number }[];
   teamStages: {
     team: string;
     planned: number;
@@ -194,7 +198,49 @@ export function AdminAnalytics({ data }: { data: AnalyticsData }) {
           value={`${kpis.activeMembers} / ${kpis.totalMembers}`}
           sub="have created a lead"
         />
+        <KpiCard
+          label="Due till now"
+          value={kpis.dueTillNow.toLocaleString("en-IN")}
+          sub="planned date passed, not done"
+        />
+        <KpiCard
+          label="Planned — next 15 days"
+          value={kpis.upcomingPlanned15Days.toLocaleString("en-IN")}
+          sub="institutions with outreach due"
+        />
+        <KpiCard
+          label="Total pending outreach"
+          value={(kpis.dueTillNow + kpis.upcomingPlanned15Days).toLocaleString("en-IN")}
+          sub={`${kpis.dueTillNow.toLocaleString("en-IN")} due till now + ${kpis.upcomingPlanned15Days.toLocaleString("en-IN")} next 15 days`}
+        />
       </div>
+
+      <SectionHeading>Upcoming outreach (next 15 days)</SectionHeading>
+      <Card>
+        <CardHeader>
+          <CardTitle>Institutions planned, day by day</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <ComposedChart data={data.upcoming15Days} margin={{ left: -10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={false} />
+              <XAxis dataKey="label" tick={AXIS_TICK} />
+              <YAxis tick={AXIS_TICK} allowDecimals={false} />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="count" name="Planned that day" fill="#0f62fe" radius={[4, 4, 0, 0]} />
+              <Line
+                type="monotone"
+                dataKey="cumulative"
+                name="Cumulative (till now)"
+                stroke="#24a148"
+                strokeWidth={2}
+                dot={false}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
 
       <SectionHeading>Overview</SectionHeading>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
