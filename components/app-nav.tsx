@@ -37,6 +37,7 @@ export function AppNav({
     ...(role === "admin"
       ? [
           { href: "/admin", label: "Admin" },
+          { href: "/admin/analytics", label: "Analytics" },
           { href: "/admin/users", label: "Users" },
           { href: "/admin/logs", label: "Logs" },
         ]
