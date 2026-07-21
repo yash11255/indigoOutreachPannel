@@ -86,6 +86,25 @@ function groupCount(
     .sort((a, b) => b.total - a.total);
 }
 
+/** Same as groupCount but keyed by team — kept separate since the link target needs the team's id, not just its name. */
+function groupByTeam(
+  leads: { team_id: string; status: string }[],
+  teams: { id: string; name: string }[],
+) {
+  const map = new Map<string, { id: string; total: number; completed: number }>();
+  for (const l of leads) {
+    const team = teams.find((t) => t.id === l.team_id);
+    const key = team?.name ?? "Unspecified";
+    const entry = map.get(key) ?? { id: l.team_id, total: 0, completed: 0 };
+    entry.total += 1;
+    if (stageForStatus(l.status) === "completed") entry.completed += 1;
+    map.set(key, entry);
+  }
+  return Array.from(map.entries())
+    .map(([name, stats]) => ({ name, ...stats }))
+    .sort((a, b) => b.total - a.total);
+}
+
 export default async function AdminSegmentPage({
   searchParams,
 }: {
@@ -154,6 +173,7 @@ export default async function AdminSegmentPage({
   // you've already drilled into that state.
   const byState = !state ? groupCount(leads, (l) => l.state) : [];
   const byDistrict = !district ? groupCount(leads, (l) => l.district_city) : [];
+  const byTeam = !teamId ? groupByTeam(leads, teams) : [];
   const byMember = buildMemberInstitutions(leads);
 
   return (
@@ -253,8 +273,47 @@ export default async function AdminSegmentPage({
         </Card>
       )}
 
-      {(byState.length > 0 || byDistrict.length > 0) && (
+      {(byTeam.length > 0 || byState.length > 0 || byDistrict.length > 0) && (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          {byTeam.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>By team</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Team</TableHead>
+                      <TableHead>Total leads</TableHead>
+                      <TableHead>Completed</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {byTeam.map((row) => (
+                      <TableRow key={row.name}>
+                        <TableCell className="font-medium">
+                          {row.name === "Unspecified" ? (
+                            row.name
+                          ) : (
+                            <Link
+                              href={segmentHref({ region, team: row.id, state, district })}
+                              className="hover:underline"
+                            >
+                              {row.name}
+                            </Link>
+                          )}
+                        </TableCell>
+                        <TableCell>{row.total}</TableCell>
+                        <TableCell>{row.completed}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
           {byState.length > 0 && (
             <Card>
               <CardHeader>

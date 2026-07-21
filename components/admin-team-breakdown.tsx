@@ -185,13 +185,13 @@ export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
           const isFullyDone = row.total > 0 && row.completed === row.total;
           return (
             <div key={row.teamId} className="rounded-md border">
-              <button
-                type="button"
-                onClick={() => setOpenId(isOpen ? null : row.teamId)}
-                aria-expanded={isOpen}
-                className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 text-left hover:bg-neutral-50"
-              >
-                <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+              <div className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 hover:bg-neutral-50">
+                <button
+                  type="button"
+                  onClick={() => setOpenId(isOpen ? null : row.teamId)}
+                  aria-expanded={isOpen}
+                  className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1 text-left"
+                >
                   <span className="truncate font-semibold">{row.teamName}</span>
                   <span className="whitespace-nowrap text-xs text-neutral-500">
                     {row.total} lead{row.total === 1 ? "" : "s"}
@@ -206,7 +206,7 @@ export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
                     · {isFullyDone ? "✓ " : ""}
                     {pct}% complete
                   </span>
-                </div>
+                </button>
                 <div className="flex shrink-0 items-center gap-3">
                   <div className="flex h-2 w-28 overflow-hidden rounded-full bg-neutral-100 sm:w-36">
                     {STAGE_ORDER.map(
@@ -223,13 +223,22 @@ export function AdminTeamBreakdown({ rows }: { rows: TeamBreakdownRow[] }) {
                         ),
                     )}
                   </div>
-                  <span
+                  <Link
+                    href={`/admin/segment?team=${row.teamId}`}
+                    className="whitespace-nowrap rounded border px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
+                  >
+                    Full page — state &amp; member breakdown
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setOpenId(isOpen ? null : row.teamId)}
+                    aria-expanded={isOpen}
                     className={`text-xs text-neutral-400 transition-transform ${isOpen ? "rotate-90" : ""}`}
                   >
                     ▶
-                  </span>
+                  </button>
                 </div>
-              </button>
+              </div>
               {isOpen && (
                 <div className="border-t">
                   <div className="flex flex-wrap gap-x-4 gap-y-1.5 px-4 py-3 text-xs text-neutral-500">

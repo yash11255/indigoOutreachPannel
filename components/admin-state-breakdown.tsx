@@ -13,23 +13,17 @@ const STAGE_COLOR: Record<LeadStage, string> = {
   stalled: "#da1e28",
 };
 
-export type RegionBreakdownRow = {
-  region: string;
+export type StateBreakdownRow = {
+  state: string;
+  region: string | null;
   total: number;
   completed: number;
   plannedGirls: number;
   girlsReached: number;
   stages: Record<LeadStage, number>;
-  states: {
-    name: string;
-    total: number;
-    completed: number;
-    stages: Record<LeadStage, number>;
-  }[];
   leads: {
     id: string;
     institution: string;
-    state: string | null;
     district: string | null;
     status: string;
     plannedDate: string | null;
@@ -46,7 +40,7 @@ function formatDate(iso: string | null) {
   });
 }
 
-function sumRows(rows: RegionBreakdownRow[]) {
+function sumRows(rows: StateBreakdownRow[]) {
   return rows.reduce(
     (acc, r) => ({
       total: acc.total + r.total,
@@ -65,9 +59,9 @@ function completionPct(completed: number, total: number) {
 
 const ACHIEVED_GREEN = "#24a148";
 
-/** Groups a region's leads by district (most leads first), districts with no name last. */
-function groupByDistrict(leads: RegionBreakdownRow["leads"]) {
-  const map = new Map<string, RegionBreakdownRow["leads"]>();
+/** Groups a state's leads by district (most leads first). */
+function groupByDistrict(leads: StateBreakdownRow["leads"]) {
+  const map = new Map<string, StateBreakdownRow["leads"]>();
   for (const l of leads) {
     const key = l.district?.trim() || "Unspecified";
     const arr = map.get(key) ?? [];
@@ -80,12 +74,12 @@ function groupByDistrict(leads: RegionBreakdownRow["leads"]) {
 }
 
 /**
- * Region-wise leads: same shape as Team-wise leads, but for geography — a
- * collapsible per-region breakdown, expandable to that region's states (as
- * "sub-divisions", linking out to a filtered view) and a scrollable,
- * per-district drill-down of every lead.
+ * State-wise leads — same shape and interaction as Team-wise/Region-wise,
+ * but flat by state (not nested under region first) since a state only has
+ * one further sub-level worth breaking out: district straight to institution,
+ * same as Team goes straight to member.
  */
-export function AdminRegionBreakdown({ rows }: { rows: RegionBreakdownRow[] }) {
+export function AdminStateBreakdown({ rows }: { rows: StateBreakdownRow[] }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [openDistricts, setOpenDistricts] = useState<Set<string>>(new Set());
 
@@ -100,13 +94,13 @@ export function AdminRegionBreakdown({ rows }: { rows: RegionBreakdownRow[] }) {
 
   if (rows.length === 0) {
     return (
-      <p className="text-sm text-neutral-500">No region has any leads yet.</p>
+      <p className="text-sm text-neutral-500">No state has any leads yet.</p>
     );
   }
 
   const totals = sumRows(rows);
   const consolidated: { label: string; value: number; achieved?: boolean }[] = [
-    { label: "Total leads (all regions)", value: totals.total },
+    { label: "Total leads (all states)", value: totals.total },
     { label: "Completed", value: totals.completed, achieved: true },
     { label: "Planned girls reach", value: totals.plannedGirls },
     { label: "Girls reached", value: totals.girlsReached, achieved: true },
@@ -154,19 +148,24 @@ export function AdminRegionBreakdown({ rows }: { rows: RegionBreakdownRow[] }) {
 
       <div className="flex flex-col gap-2">
         {rows.map((row) => {
-          const isOpen = openId === row.region;
+          const isOpen = openId === row.state;
           const pct = completionPct(row.completed, row.total);
           const isFullyDone = row.total > 0 && row.completed === row.total;
           return (
-            <div key={row.region} className="rounded-md border">
+            <div key={row.state} className="rounded-md border">
               <div className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 hover:bg-neutral-50">
                 <button
                   type="button"
-                  onClick={() => setOpenId(isOpen ? null : row.region)}
+                  onClick={() => setOpenId(isOpen ? null : row.state)}
                   aria-expanded={isOpen}
                   className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1 text-left"
                 >
-                  <span className="truncate font-semibold">{row.region}</span>
+                  <span className="truncate font-semibold">{row.state}</span>
+                  {row.region && (
+                    <span className="whitespace-nowrap text-xs text-neutral-400">
+                      {row.region}
+                    </span>
+                  )}
                   <span className="whitespace-nowrap text-xs text-neutral-500">
                     {row.total} lead{row.total === 1 ? "" : "s"}
                   </span>
@@ -198,14 +197,14 @@ export function AdminRegionBreakdown({ rows }: { rows: RegionBreakdownRow[] }) {
                     )}
                   </div>
                   <Link
-                    href={`/admin/segment?region=${encodeURIComponent(row.region)}`}
+                    href={`/admin/segment?state=${encodeURIComponent(row.state)}`}
                     className="whitespace-nowrap rounded border px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
                   >
                     Full page — team &amp; member breakdown
                   </Link>
                   <button
                     type="button"
-                    onClick={() => setOpenId(isOpen ? null : row.region)}
+                    onClick={() => setOpenId(isOpen ? null : row.state)}
                     aria-expanded={isOpen}
                     className={`text-xs text-neutral-400 transition-transform ${isOpen ? "rotate-90" : ""}`}
                   >
@@ -247,45 +246,9 @@ export function AdminRegionBreakdown({ rows }: { rows: RegionBreakdownRow[] }) {
                       </span>
                     </div>
                   </div>
-                  {row.states.length > 0 && (
-                    <div className="flex flex-col gap-1.5 border-t px-4 py-3">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
-                        States
-                      </span>
-                      {row.states.map((state) => (
-                        <Link
-                          key={state.name}
-                          href={`/admin/segment?region=${encodeURIComponent(row.region)}&state=${encodeURIComponent(state.name)}`}
-                          className="flex items-center gap-3 text-sm hover:underline"
-                        >
-                          <span className="min-w-0 flex-1 truncate">
-                            {state.name}
-                          </span>
-                          <div className="flex h-1.5 w-20 shrink-0 overflow-hidden rounded-full bg-neutral-100 sm:w-28">
-                            {STAGE_ORDER.map(
-                              (stage) =>
-                                state.stages[stage] > 0 && (
-                                  <div
-                                    key={stage}
-                                    style={{
-                                      width: `${(state.stages[stage] / state.total) * 100}%`,
-                                      backgroundColor: STAGE_COLOR[stage],
-                                    }}
-                                    title={`${STAGE_LABELS[stage]}: ${state.stages[stage]}`}
-                                  />
-                                ),
-                            )}
-                          </div>
-                          <span className="w-20 shrink-0 text-right text-xs text-neutral-500">
-                            {state.completed}/{state.total} done
-                          </span>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
                   <div className="flex max-h-96 flex-col overflow-y-auto border-t">
                     {groupByDistrict(row.leads).map(({ district, leads: districtLeads }) => {
-                      const districtKey = `${row.region}:${district}`;
+                      const districtKey = `${row.state}:${district}`;
                       const districtOpen = openDistricts.has(districtKey);
                       return (
                         <div key={district}>
@@ -301,11 +264,6 @@ export function AdminRegionBreakdown({ rows }: { rows: RegionBreakdownRow[] }) {
                                 ▶
                               </span>
                               <span className="truncate">{district}</span>
-                              {districtLeads[0]?.state && (
-                                <span className="truncate text-xs font-normal text-neutral-400">
-                                  {districtLeads[0].state}
-                                </span>
-                              )}
                             </span>
                             <span className="shrink-0 text-xs text-neutral-500">
                               {districtLeads.length} lead

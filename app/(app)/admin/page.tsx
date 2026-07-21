@@ -13,6 +13,10 @@ import {
   AdminRegionBreakdown,
   type RegionBreakdownRow,
 } from "@/components/admin-region-breakdown";
+import {
+  AdminStateBreakdown,
+  type StateBreakdownRow,
+} from "@/components/admin-state-breakdown";
 import { AdminMemberBreakdown } from "@/components/admin-member-breakdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -174,6 +178,43 @@ export default async function AdminPage() {
         girlsReached: sum(regionLeads.map((l) => l.girls_reached)),
         stages,
         states,
+        leads: sortedLeads,
+      };
+    })
+    .sort((a, b) => b.total - a.total);
+
+  const byStateRaw = new Map<string, typeof leads>();
+  for (const l of leads) {
+    const key = l.state?.trim() || "Unspecified";
+    const arr = byStateRaw.get(key) ?? [];
+    arr.push(l);
+    byStateRaw.set(key, arr);
+  }
+  const stateActivity: StateBreakdownRow[] = Array.from(byStateRaw.entries())
+    .map(([state, stateLeads]) => {
+      const stages = emptyStages();
+      for (const l of stateLeads) stages[stageForStatus(l.status)] += 1;
+
+      const sortedLeads = stateLeads
+        .slice()
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .map((l) => ({
+          id: l.id,
+          institution: l.institution_name,
+          district: l.district_city,
+          status: l.status,
+          plannedDate: l.planned_date,
+          executedDate: l.executed_date,
+        }));
+
+      return {
+        state,
+        region: stateLeads[0]?.region ?? null,
+        total: stateLeads.length,
+        completed: stages.completed,
+        plannedGirls: sum(stateLeads.map((l) => l.planned_girls_reach)),
+        girlsReached: sum(stateLeads.map((l) => l.girls_reached)),
+        stages,
         leads: sortedLeads,
       };
     })
@@ -522,6 +563,15 @@ export default async function AdminPage() {
         </CardHeader>
         <CardContent>
           <AdminRegionBreakdown rows={regionActivity} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>State-wise leads</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <AdminStateBreakdown rows={stateActivity} />
         </CardContent>
       </Card>
 
