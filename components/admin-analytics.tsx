@@ -34,6 +34,7 @@ export type AnalyticsKpis = {
   totalLeads: number;
   completed: number;
   completionRate: number;
+  planned: number;
   inProgress: number;
   stalled: number;
   plannedGirls: number;
@@ -173,6 +174,7 @@ export function AdminAnalytics({ data }: { data: AnalyticsData }) {
           sub={`${kpis.completionRate}% of total`}
           achieved
         />
+        <KpiCard label="Planned" value={kpis.planned.toLocaleString("en-IN")} />
         <KpiCard label="In progress" value={kpis.inProgress.toLocaleString("en-IN")} />
         <KpiCard label="Inactive" value={kpis.stalled.toLocaleString("en-IN")} />
         <KpiCard

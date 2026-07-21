@@ -30,6 +30,7 @@ export default async function AdminAnalyticsPage() {
   const totalLeads = leads.length;
   const stageCounts = emptyStages();
   for (const l of leads) stageCounts[stageForStatus(l.status)] += 1;
+  const planned = stageCounts.planned;
   const completed = stageCounts.completed;
   const inProgress = stageCounts.outreach_sent + stageCounts.scheduled;
   const stalled = stageCounts.stalled;
@@ -58,6 +59,7 @@ export default async function AdminAnalyticsPage() {
     totalLeads,
     completed,
     completionRate: totalLeads > 0 ? Math.round((completed / totalLeads) * 100) : 0,
+    planned,
     inProgress,
     stalled,
     plannedGirls,
