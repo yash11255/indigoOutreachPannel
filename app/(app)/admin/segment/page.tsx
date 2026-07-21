@@ -25,6 +25,7 @@ import {
   canEditLeads,
   buildMemberBreakdown,
   buildMemberInstitutions,
+  type LeadStage,
 } from "@/lib/types";
 
 function sum(nums: (number | null)[]) {
@@ -39,6 +40,7 @@ function segmentHref(params: {
   state?: string;
   district?: string;
   date?: string;
+  stages?: string;
 }) {
   const sp = new URLSearchParams();
   if (params.region) sp.set("region", params.region);
@@ -47,6 +49,7 @@ function segmentHref(params: {
   if (params.state) sp.set("state", params.state);
   if (params.district) sp.set("district", params.district);
   if (params.date) sp.set("date", params.date);
+  if (params.stages) sp.set("stages", params.stages);
   return `/admin/segment?${sp.toString()}`;
 }
 
@@ -115,12 +118,16 @@ export default async function AdminSegmentPage({
     state?: string;
     district?: string;
     date?: string;
+    stages?: string;
   }>;
 }) {
   const profile = await requireAdminOrTeamAdmin();
   const isFullAdmin = profile.role === "admin";
-  const { state, district, date } = await searchParams;
+  const { state, district, date, stages: stagesParam } = await searchParams;
   let { region, team: teamId, subTeam } = await searchParams;
+  const stageFilter = stagesParam
+    ? (stagesParam.split(",").filter(Boolean) as LeadStage[])
+    : null;
 
   // A team_admin only ever sees their own team — region rolls up multiple
   // teams, so it isn't a meaningful scope for them either. Force both rather
@@ -134,7 +141,8 @@ export default async function AdminSegmentPage({
     teamId = profile.team_id ?? undefined;
     if (profile.sub_team) subTeam = profile.sub_team;
   }
-  if (!region && !teamId && !subTeam && !state && !district && !date) notFound();
+  if (!region && !teamId && !subTeam && !state && !district && !date && !stageFilter)
+    notFound();
 
   const [allLeads, teams] = await Promise.all([getLeads(), getTeams()]);
   const team = teamId ? teams.find((t) => t.id === teamId) : undefined;
@@ -147,7 +155,8 @@ export default async function AdminSegmentPage({
       (!subTeam || l.sub_team === subTeam) &&
       (!state || l.state === state) &&
       (!district || l.district_city === district) &&
-      (!date || createdOnDay(l.created_at) === date),
+      (!date || createdOnDay(l.created_at) === date) &&
+      (!stageFilter || stageFilter.includes(stageForStatus(l.status))),
   );
 
   const titleParts = [
@@ -157,6 +166,7 @@ export default async function AdminSegmentPage({
     team?.name,
     subTeam,
     date && `Created ${formatDay(date)}`,
+    stageFilter && stageFilter.map((s) => STAGE_LABELS[s]).join(" + "),
   ].filter(Boolean);
   const title = titleParts.join(" — ") || "All leads";
 
@@ -297,7 +307,7 @@ export default async function AdminSegmentPage({
                             row.name
                           ) : (
                             <Link
-                              href={segmentHref({ region, team: row.id, state, district })}
+                              href={segmentHref({ region, team: row.id, state, district, stages: stagesParam })}
                               className="hover:underline"
                             >
                               {row.name}
@@ -336,7 +346,7 @@ export default async function AdminSegmentPage({
                             row.name
                           ) : (
                             <Link
-                              href={segmentHref({ region, team: teamId, subTeam, state: row.name })}
+                              href={segmentHref({ region, team: teamId, subTeam, state: row.name, stages: stagesParam })}
                               className="hover:underline"
                             >
                               {row.name}
@@ -381,6 +391,7 @@ export default async function AdminSegmentPage({
                                 subTeam,
                                 state,
                                 district: row.name,
+                                stages: stagesParam,
                               })}
                               className="hover:underline"
                             >

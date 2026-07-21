@@ -16,6 +16,7 @@ import {
   Line,
   ComposedChart,
 } from "recharts";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { STAGE_LABELS, type LeadStage } from "@/lib/types";
 
@@ -98,14 +99,16 @@ function KpiCard({
   value,
   sub,
   achieved,
+  href,
 }: {
   label: string;
   value: string;
   sub?: string;
   achieved?: boolean;
+  href?: string;
 }) {
-  return (
-    <div className="relative overflow-hidden rounded-md border bg-neutral-50 py-2 pr-3 pl-3.5">
+  const content = (
+    <>
       {achieved && (
         <div
           className="absolute inset-y-0 left-0 w-1"
@@ -116,6 +119,23 @@ function KpiCard({
       <div className="text-xs text-neutral-500">{label}</div>
       <div className="text-lg font-semibold tabular-nums">{value}</div>
       {sub && <div className="text-xs text-neutral-400">{sub}</div>}
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="relative overflow-hidden rounded-md border bg-neutral-50 py-2 pr-3 pl-3.5 transition-colors hover:bg-neutral-100"
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="relative overflow-hidden rounded-md border bg-neutral-50 py-2 pr-3 pl-3.5">
+      {content}
     </div>
   );
 }
@@ -174,7 +194,11 @@ export function AdminAnalytics({ data }: { data: AnalyticsData }) {
           sub={`${kpis.completionRate}% of total`}
           achieved
         />
-        <KpiCard label="Planned" value={kpis.planned.toLocaleString("en-IN")} />
+        <KpiCard
+          label="Planned"
+          value={kpis.planned.toLocaleString("en-IN")}
+          href="/admin/segment?stages=planned"
+        />
         <KpiCard label="In progress" value={kpis.inProgress.toLocaleString("en-IN")} />
         <KpiCard label="Inactive" value={kpis.stalled.toLocaleString("en-IN")} />
         <KpiCard
