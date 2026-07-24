@@ -14,9 +14,19 @@ import { StageBadge, StatusBadge } from "@/components/stage-badge";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { MoveToExecutionDialog } from "@/components/move-to-execution-dialog";
-import { markLeadExecuted, markRoundExecuted } from "@/lib/actions/leads";
+import { ExecuteBlockedButton } from "@/components/execute-blocked-button";
+import { CompleteDespiteRejectionDialog } from "@/components/complete-despite-rejection-dialog";
+import { markLeadExecuted, markRoundExecuted, completeLeadDespiteRejection } from "@/lib/actions/leads";
 import { Button } from "@/components/ui/button";
-import { stageForStatus, type Lead, type LeadRound, type Team } from "@/lib/types";
+import {
+  stageForStatus,
+  isLeadResolved,
+  leadHasSessionAttempt,
+  canCompleteDespiteRejection,
+  type Lead,
+  type LeadRound,
+  type Team,
+} from "@/lib/types";
 
 /** The one round a lead's quick "Mark as executed" button in a list view
  * should target: round 1 (the lead itself) if it's still unresolved,
@@ -174,10 +184,19 @@ export function LeadsTable({
               </TableHeader>
               <TableBody>
                 {leads.map((lead) => {
+                  const leadRounds = roundsByLead.get(lead.id) ?? [];
                   const pending = findPendingRound(lead, roundsByLead);
                   const hasContactDetails = !!(
                     lead.contact_person && (lead.mobile_no || lead.email_id)
                   );
+                  const canComplete = canCompleteDespiteRejection(lead, leadRounds);
+                  const blockedMessage = canComplete
+                    ? undefined // handled by the "Mark as Completed" button instead
+                    : isLeadResolved(lead)
+                      ? "This lead is already resolved — nothing left to execute."
+                      : leadHasSessionAttempt(lead, leadRounds)
+                        ? undefined // a session was attempted but not yet resolved elsewhere — shouldn't normally hit "no pending" in that case
+                        : "You haven't planned any session yet — please try to plan one first.";
                   return (
                     <TableRow key={lead.id}>
                       <TableCell className="font-medium">
@@ -248,6 +267,17 @@ export function LeadsTable({
                                 </Button>
                               }
                             />
+                          )}
+                          {!pending && canComplete && (
+                            <CompleteDespiteRejectionDialog
+                              title={lead.institution_name}
+                              hasContactDetails={hasContactDetails}
+                              onConfirm={completeLeadDespiteRejection.bind(null, lead.id)}
+                              trigger={<Button size="sm">Mark as Completed</Button>}
+                            />
+                          )}
+                          {!pending && !canComplete && (
+                            <ExecuteBlockedButton message={blockedMessage} />
                           )}
                         </TableCell>
                       )}

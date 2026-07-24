@@ -122,14 +122,6 @@ export function MoveToExecutionDialog({
       );
       return;
     }
-    if (!hadAwarenessSession) {
-      const proceed = window.confirm(
-        "No awareness session planned or held at this institution yet.\n\n" +
-          "This will NOT mark the lead as completed — it stays \"Planned\" until a real session happens in some round.\n\n" +
-          "Continue marking this round executed anyway?",
-      );
-      if (!proceed) return;
-    }
     startTransition(async () => {
       try {
         await onConfirm({
@@ -140,7 +132,14 @@ export function MoveToExecutionDialog({
           driveLink: driveLink || undefined,
           completionRemarks: completionRemarks || undefined,
         });
-        toast.success("Marked as executed");
+        if (hadAwarenessSession) {
+          toast.success("Marked as executed");
+        } else {
+          toast.error(
+            "No awareness session recorded yet — this lead stays \"Planned\", not completed. Plan a session before trying to close it.",
+            { duration: 6000 },
+          );
+        }
         setOpen(false);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to update");

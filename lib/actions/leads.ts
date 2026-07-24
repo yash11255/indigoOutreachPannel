@@ -98,6 +98,32 @@ async function leadHasGenuineSession(
 }
 
 /**
+ * Whether a session was ever genuinely *attempted* anywhere on this lead —
+ * broader than leadHasGenuineSession: it also counts a round whose planned
+ * activity was a session but that got cancelled/rejected before happening.
+ * A cancelled round never sets activity_undertaken (only leadHasGenuineSession
+ * cares about that), so this instead also looks at what was *planned*
+ * (lead.planned_activity, round.title) — real effort was made even though
+ * the institution said no. This is the gate for the manual "Mark as
+ * Completed" path on a lead whose session got rejected, distinct from the
+ * automatic completion that only fires once a session actually happened.
+ */
+async function leadHasSessionAttempt(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  leadId: string,
+): Promise<boolean> {
+  const [{ data: leadRow }, { data: rounds }] = await Promise.all([
+    supabase.from("leads").select("planned_activity, activity_undertaken").eq("id", leadId).single(),
+    supabase.from("lead_rounds").select("title, activity_undertaken").eq("lead_id", leadId),
+  ]);
+  return hasAwarenessSession([
+    leadRow?.planned_activity,
+    leadRow?.activity_undertaken,
+    ...(rounds ?? []).flatMap((r) => [r.title, r.activity_undertaken]),
+  ]);
+}
+
+/**
  * Whether the lead has at least a contact person plus one way to reach them
  * (mobile or email) on file. SPOC contact is intentionally optional while a
  * lead is still early in the pipeline ("Contact Details Pending" etc.) — but
@@ -389,64 +415,52 @@ export async function cancelLead(leadId: string, input: CancelInput) {
 }
 
 /**
- * The top-level "drop this lead" action — a single button for dropping a
- * lead entirely, whatever stage it's at, as long as no genuine session has
- * happened yet (the UI only shows this button in that case). Unlike
- * cancelLead/cancelRound (which resolve one specific round), this closes out
- * *every* currently-unresolved round on the lead with the same reason, so
- * nothing is left dangling as "Planned" underneath a lead that's now
- * Rejected/No Response.
+ * The manual "Mark as Completed" path for a lead whose session was genuinely
+ * attempted but got rejected/cancelled before it could happen — real effort
+ * was made toward the actual goal, so this counts as done, just not the same
+ * way as a lead whose session actually ran (that one auto-completes on its
+ * own once executed; this one needs an explicit confirmation instead since
+ * nothing genuinely happened to trigger it automatically). Re-validates the
+ * same criteria server-side rather than trusting the UI gating alone: every
+ * round resolved, a session attempted somewhere, contact details on file.
  */
-export async function dropLead(leadId: string, input: CancelInput) {
+export async function completeLeadDespiteRejection(leadId: string, remarks?: string) {
   await requireProfileForAction();
   const supabase = await createClient();
 
-  const { data: rounds } = await supabase
-    .from("lead_rounds")
-    .select("id, executed_date, status")
-    .eq("lead_id", leadId);
-  const unresolvedRounds = (rounds ?? []).filter(
-    (r) => !r.executed_date && stageForStatus(r.status) !== "stalled",
-  );
-  for (const r of unresolvedRounds) {
-    const { error: roundError } = await supabase
-      .from("lead_rounds")
-      .update({
-        status: input.status,
-        ...(input.remarks
-          ? {
-              remarks: await appendRemarks(
-                supabase,
-                "lead_rounds",
-                r.id,
-                input.remarks,
-                "Cancelled",
-              ),
-            }
-          : {}),
-      })
-      .eq("id", r.id);
-    if (roundError) throw new Error(roundError.message);
+  const { data: leadRow } = await supabase
+    .from("leads")
+    .select("executed_date")
+    .eq("id", leadId)
+    .single();
+
+  const [allDone, sessionAttempted, hasContact] = await Promise.all([
+    allRoundsDone(supabase, leadId, leadRow?.executed_date ?? null),
+    leadHasSessionAttempt(supabase, leadId),
+    leadHasContactDetails(supabase, leadId),
+  ]);
+
+  if (!allDone) {
+    throw new Error("Every round needs to be resolved before this lead can be marked completed.");
+  }
+  if (!sessionAttempted) {
+    throw new Error("No awareness session was ever planned for this lead — nothing to mark completed on that basis.");
+  }
+  if (!hasContact) {
+    throw new Error("Add contact details (contact person + mobile/email) before completing this lead.");
   }
 
   const { error } = await supabase
     .from("leads")
     .update({
-      status: input.status,
-      ...(input.remarks
+      status: "Activity Completed",
+      ...(remarks
         ? {
-            remarks: await appendRemarks(
-              supabase,
-              "leads",
-              leadId,
-              input.remarks,
-              "Cancelled",
-            ),
+            remarks: await appendRemarks(supabase, "leads", leadId, remarks, "Completed"),
           }
         : {}),
     })
     .eq("id", leadId);
-
   if (error) throw new Error(error.message);
 
   revalidatePath("/leads");

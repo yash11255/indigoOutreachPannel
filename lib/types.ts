@@ -1,3 +1,5 @@
+import { hasAwarenessSession } from "@/lib/outreach-taxonomy";
+
 /**
  * "team_admin" is a view-only role scoped to one outreach team (or, if
  * sub_team is also set on their profile, to just that client-account
@@ -159,6 +161,76 @@ export function groupRoundsByLead(rounds: LeadRound[]): Map<string, LeadRound[]>
     map.set(r.lead_id, arr);
   }
   return map;
+}
+
+/** Already-resolved lead statuses — nothing left to execute, cancel, or complete. */
+export function isLeadResolved(lead: Pick<Lead, "status">): boolean {
+  return lead.status === "Activity Completed" || stageForStatus(lead.status) === "stalled";
+}
+
+/**
+ * Whether a genuine awareness session has actually happened somewhere in
+ * this lead's history (round 1, or any later round) — round 1's own
+ * genuine-session check, not just "any round executed".
+ */
+export function leadHasGenuineSession(
+  lead: Pick<Lead, "activity_undertaken">,
+  rounds: LeadRound[],
+): boolean {
+  return hasAwarenessSession([
+    lead.activity_undertaken,
+    ...rounds.map((r) => r.activity_undertaken),
+  ]);
+}
+
+/**
+ * Broader than leadHasGenuineSession: also true if a session was *planned*
+ * for some round but that round got rejected/cancelled before it happened —
+ * a cancelled round never sets activity_undertaken, so this also checks
+ * what was planned (planned_activity / round.title), not just what was
+ * carried out. Real effort was made even though the answer came back no.
+ */
+export function leadHasSessionAttempt(
+  lead: Pick<Lead, "planned_activity" | "activity_undertaken">,
+  rounds: LeadRound[],
+): boolean {
+  return hasAwarenessSession([
+    lead.planned_activity,
+    lead.activity_undertaken,
+    ...rounds.flatMap((r) => [r.title, r.activity_undertaken]),
+  ]);
+}
+
+/** Whether every round on this lead — round 1 (the lead row) plus every
+ * lead_rounds row — is resolved: either executed, or cancelled/stalled. */
+export function leadAllRoundsResolved(
+  lead: Pick<Lead, "executed_date" | "status">,
+  rounds: LeadRound[],
+): boolean {
+  const round1Resolved = !!lead.executed_date || stageForStatus(lead.status) === "stalled";
+  return (
+    round1Resolved &&
+    rounds.every((r) => !!r.executed_date || stageForStatus(r.status) === "stalled")
+  );
+}
+
+/**
+ * The manual "Mark as Completed" path is available once: every round is
+ * resolved, a session was attempted somewhere but never actually happened
+ * (it was rejected — otherwise this would've already auto-completed), and
+ * the lead isn't already resolved. Contact details are checked inside the
+ * dialog itself (same pattern as executing a session), not here.
+ */
+export function canCompleteDespiteRejection(
+  lead: Pick<Lead, "status" | "executed_date" | "planned_activity" | "activity_undertaken">,
+  rounds: LeadRound[],
+): boolean {
+  return (
+    !isLeadResolved(lead) &&
+    leadAllRoundsResolved(lead, rounds) &&
+    leadHasSessionAttempt(lead, rounds) &&
+    !leadHasGenuineSession(lead, rounds)
+  );
 }
 
 /**

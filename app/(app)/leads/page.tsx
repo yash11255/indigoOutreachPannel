@@ -3,6 +3,8 @@ import { getLeads, getAllLeadRounds } from "@/lib/data/leads";
 import { getTeams, getStatuses, getRegionsStates, getDistrictsMaster } from "@/lib/data/lookups";
 import { DueBanner } from "@/components/due-banner";
 import { LeadsView } from "./leads-view";
+import { stageForStatus, groupRoundsByLead } from "@/lib/types";
+import { hasAwarenessSession } from "@/lib/outreach-taxonomy";
 
 export default async function LeadsPage() {
   const profile = await requireProfile();
@@ -41,11 +43,42 @@ export default async function LeadsPage() {
       : "View-only access to every lead on your team."
     : "Create a lead with a planned date, then move it to execution once the activity happens.";
 
+  // Top-of-page summary: how many are still open ("Planned" stage — includes
+  // leads with real effort already on them but no session yet), how many are
+  // fully done, and of those done, how many actually have a genuine session
+  // on record vs. were resolved some other way (e.g. cancelled).
+  const roundsByLead = groupRoundsByLead(rounds);
+  const plannedCount = leads.filter((l) => stageForStatus(l.status) === "planned").length;
+  const completedLeads = leads.filter((l) => stageForStatus(l.status) === "completed");
+  const completedWithSessionCount = completedLeads.filter((l) =>
+    hasAwarenessSession([
+      l.activity_undertaken,
+      ...(roundsByLead.get(l.id) ?? []).map((r) => r.activity_undertaken),
+    ]),
+  ).length;
+
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-semibold">{heading}</h1>
         <p className="text-sm text-neutral-500">{subtitle}</p>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-md border bg-neutral-50 px-3.5 py-2.5">
+          <div className="text-xs text-neutral-500">In Planned</div>
+          <div className="text-lg font-semibold tabular-nums">{plannedCount}</div>
+        </div>
+        <div className="rounded-md border bg-neutral-50 px-3.5 py-2.5">
+          <div className="text-xs text-neutral-500">Completed</div>
+          <div className="text-lg font-semibold tabular-nums">{completedLeads.length}</div>
+        </div>
+        <div className="relative overflow-hidden rounded-md border bg-neutral-50 px-3.5 py-2.5">
+          <div className="absolute inset-y-0 left-0 w-1 bg-[#24a148]" aria-hidden />
+          <div className="text-xs text-neutral-500">Completed with a real session</div>
+          <div className="text-lg font-semibold tabular-nums text-[#0e6027]">
+            {completedWithSessionCount}
+          </div>
+        </div>
       </div>
       <DueBanner leads={dueLeads} />
       <LeadsView

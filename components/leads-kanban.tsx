@@ -5,9 +5,23 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/stage-badge";
 import { MoveToExecutionDialog } from "@/components/move-to-execution-dialog";
-import { markLeadExecuted, markRoundExecuted, type MarkExecutedInput } from "@/lib/actions/leads";
+import { ExecuteBlockedButton } from "@/components/execute-blocked-button";
+import { CompleteDespiteRejectionDialog } from "@/components/complete-despite-rejection-dialog";
+import {
+  markLeadExecuted,
+  markRoundExecuted,
+  completeLeadDespiteRejection,
+  type MarkExecutedInput,
+} from "@/lib/actions/leads";
 import { Button } from "@/components/ui/button";
-import { STAGE_LABELS, STAGE_ORDER, stageForStatus } from "@/lib/types";
+import {
+  STAGE_LABELS,
+  STAGE_ORDER,
+  stageForStatus,
+  isLeadResolved,
+  leadHasSessionAttempt,
+  canCompleteDespiteRejection,
+} from "@/lib/types";
 import type { Lead, LeadRound, Team } from "@/lib/types";
 
 /** Same as leads-table.tsx's helper: the one round a lead's quick execute
@@ -99,10 +113,19 @@ export function LeadsKanban({
             </div>
             <div className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto pr-1">
               {stageLeads.map((lead) => {
+                const leadRounds = roundsByLead.get(lead.id) ?? [];
                 const pending = findPendingRound(lead, roundsByLead);
                 const hasContactDetails = !!(
                   lead.contact_person && (lead.mobile_no || lead.email_id)
                 );
+                const canComplete = canCompleteDespiteRejection(lead, leadRounds);
+                const blockedMessage = canComplete
+                  ? undefined
+                  : isLeadResolved(lead)
+                    ? "This lead is already resolved — nothing left to execute."
+                    : leadHasSessionAttempt(lead, leadRounds)
+                      ? undefined
+                      : "You haven't planned any session yet — please try to plan one first.";
                 return (
                   <Card key={lead.id} className="gap-2 py-3">
                     <CardHeader className="px-3">
@@ -167,6 +190,24 @@ export function LeadsKanban({
                               Mark as executed
                             </Button>
                           }
+                        />
+                      )}
+                      {canEdit && !pending && canComplete && (
+                        <CompleteDespiteRejectionDialog
+                          title={lead.institution_name}
+                          hasContactDetails={hasContactDetails}
+                          onConfirm={completeLeadDespiteRejection.bind(null, lead.id)}
+                          trigger={
+                            <Button size="sm" className="mt-1 w-full">
+                              Mark as Completed
+                            </Button>
+                          }
+                        />
+                      )}
+                      {canEdit && !pending && !canComplete && (
+                        <ExecuteBlockedButton
+                          message={blockedMessage}
+                          className="mt-1 w-full"
                         />
                       )}
                     </CardContent>

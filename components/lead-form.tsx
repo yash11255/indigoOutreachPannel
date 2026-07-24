@@ -154,7 +154,7 @@ export function LeadFormDialog({
             <Input
               id="institution_name"
               name="institution_name"
-              defaultValue={lead?.institution_name}
+              defaultValue={lead?.institution_name ?? ""}
               required
             />
           </div>
