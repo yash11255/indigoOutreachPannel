@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireProfileForAction } from "@/lib/data/session";
-import type { CancelInput } from "@/lib/types";
+import { requireProfileForAction, requireAdminForAction } from "@/lib/data/session";
+import { stageForStatus, type CancelInput } from "@/lib/types";
+import { hasAwarenessSession } from "@/lib/outreach-taxonomy";
 
 export type LeadFormState = { error?: string; success?: boolean };
 
@@ -42,10 +43,17 @@ async function appendRemarks(
 
 /**
  * Whether every round for a lead — round 1 (the lead row itself) plus every
- * lead_rounds row — has an executed_date. Rounds can now be completed out of
+ * lead_rounds row — is resolved: either executed, or cancelled (Rejected /
+ * No Response — the "stalled" stage). Rounds can now be completed out of
  * order (an ad-hoc round can finish before an earlier-planned one), so the
  * lead only counts as fully "Activity Completed" once nothing is left
  * pending, not just whenever any single round finishes.
+ *
+ * A cancelled round never gets an executed_date (cancelRound only sets
+ * status), so checking executed_date alone would make a lead with any
+ * cancelled round stuck on "Planned" forever, even after every other round
+ * — including a later, successful one — finishes. Cancelled counts as
+ * resolved, same as the UI's own "roundResolved" check elsewhere.
  */
 async function allRoundsDone(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -55,9 +63,77 @@ async function allRoundsDone(
   if (!round1ExecutedDate) return false;
   const { data } = await supabase
     .from("lead_rounds")
-    .select("executed_date")
+    .select("executed_date, status")
     .eq("lead_id", leadId);
-  return (data ?? []).every((r) => !!r.executed_date);
+  return (data ?? []).every(
+    (r) => !!r.executed_date || stageForStatus(r.status) === "stalled",
+  );
+}
+
+/**
+ * Whether a genuine awareness session has ever been recorded anywhere in
+ * this lead's history — round 1 (the lead row) plus every lead_rounds row —
+ * optionally including one not-yet-written activity for the round currently
+ * being resolved. This is the gate for auto-completing a lead: resolving a
+ * round (executing OR cancelling it) should never by itself flip the whole
+ * lead to "Activity Completed" just because nothing else happens to be
+ * pending yet — only a real session does that. Closing a lead out *without*
+ * a session is a deliberate act via the Cancel (Rejected/No Response) path,
+ * not a side effect of routine execution.
+ */
+async function leadHasGenuineSession(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  leadId: string,
+  extraActivity?: string | null,
+): Promise<boolean> {
+  const [{ data: leadRow }, { data: rounds }] = await Promise.all([
+    supabase.from("leads").select("activity_undertaken").eq("id", leadId).single(),
+    supabase.from("lead_rounds").select("activity_undertaken").eq("lead_id", leadId),
+  ]);
+  return hasAwarenessSession([
+    leadRow?.activity_undertaken,
+    ...(rounds ?? []).map((r) => r.activity_undertaken),
+    extraActivity,
+  ]);
+}
+
+/**
+ * Whether the lead has at least a contact person plus one way to reach them
+ * (mobile or email) on file. SPOC contact is intentionally optional while a
+ * lead is still early in the pipeline ("Contact Details Pending" etc.) — but
+ * a lead shouldn't be considered genuinely "done" if nobody on the team ever
+ * captured who was actually spoken to.
+ */
+async function leadHasContactDetails(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  leadId: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("leads")
+    .select("contact_person, mobile_no, email_id")
+    .eq("id", leadId)
+    .single();
+  return !!(data?.contact_person && (data?.mobile_no || data?.email_id));
+}
+
+/**
+ * The single completion gate, used by every path that can resolve a lead's
+ * rounds: every round resolved, a genuine awareness session recorded
+ * somewhere, and contact details on file. All three must hold before a lead
+ * is truly "Activity Completed" — resolving a round without all three just
+ * keeps the lead "Planned" (open), never forces a premature completion.
+ */
+async function shouldAutoComplete(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  leadId: string,
+  opts: { round1ExecutedDate: string | null; extraActivity?: string | null },
+): Promise<boolean> {
+  const [allDone, hasSession, hasContact] = await Promise.all([
+    allRoundsDone(supabase, leadId, opts.round1ExecutedDate),
+    leadHasGenuineSession(supabase, leadId, opts.extraActivity),
+    leadHasContactDetails(supabase, leadId),
+  ]);
+  return allDone && hasSession && hasContact;
 }
 
 /** Fields shared by create + update, pulled from FormData. */
@@ -125,10 +201,15 @@ export async function createLead(
   if (!fields.planned_activity)
     return { error: "Outreach Activity is required." };
   if (!fields.planned_date) return { error: "Planned date is required." };
-  if (fields.no_of_institutions == null)
-    return { error: "Total students is required." };
-  if (fields.planned_girls_reach == null)
-    return { error: "Planned girls reach is required." };
+  // Total students / Planned girls reach only make sense once this is a
+  // genuine awareness session — a meeting, email, or WhatsApp round has no
+  // headcount to plan for.
+  if (hasAwarenessSession([fields.planned_activity])) {
+    if (fields.no_of_institutions == null)
+      return { error: "Total students is required." };
+    if (fields.planned_girls_reach == null)
+      return { error: "Planned girls reach is required." };
+  }
   if (profile.role === "admin" && !fields.responsible_member)
     return { error: "Responsible member is required." };
 
@@ -173,6 +254,27 @@ export async function updateLead(
     .eq("id", leadId);
   if (error) return { error: error.message };
 
+  // The Edit form can set round 1's own executed_date/activity_undertaken/
+  // contact fields directly, bypassing the guided "Mark as executed" dialog
+  // — if that now satisfies every completion criterion (genuine session +
+  // every round resolved + contact details on file), bring `status` in line
+  // even though the form's own Status field wasn't necessarily touched. This
+  // only ever upgrades to "Activity Completed"; it never overrides an
+  // explicit Rejected/No Response/Planned choice when the criteria aren't
+  // actually met.
+  if (fields.status !== "Activity Completed") {
+    const shouldComplete = await shouldAutoComplete(supabase, leadId, {
+      round1ExecutedDate: fields.executed_date,
+    });
+    if (shouldComplete) {
+      const { error: statusError } = await supabase
+        .from("leads")
+        .update({ status: "Activity Completed" })
+        .eq("id", leadId);
+      if (statusError) return { error: statusError.message };
+    }
+  }
+
   revalidatePath("/leads");
   revalidatePath(`/leads/${leadId}`);
   revalidatePath("/calendar");
@@ -190,10 +292,14 @@ export type MarkExecutedInput = {
 };
 
 /**
- * Marks a lead as executed: requires an executed date, and always resolves
- * to "Activity Completed" — no manual status picking. If it didn't happen,
- * use the regular edit form and pick "Rejected"/"No Response" there instead;
- * this action specifically means "the activity happened."
+ * Marks a lead as executed: requires an executed date, and records the
+ * round's own details. This alone never completes the lead — it only flips
+ * to "Activity Completed" once every round is resolved AND a genuine
+ * awareness session has happened somewhere in the history; otherwise it
+ * stays "Planned" (open) even if nothing else is currently pending, since
+ * more rounds may still be coming. To close a lead out *without* a session,
+ * use the regular edit form / Cancel action and pick "Rejected"/"No
+ * Response" instead — that's the deliberate way to end it early.
  *
  * Curried as (leadId) => (input) so Server Components can pass
  * `markLeadExecuted.bind(null, lead.id)` down to a Client Component — a
@@ -209,13 +315,17 @@ export async function markLeadExecuted(
 
   // This round (round 1) is done, but other rounds may still be pending (they
   // don't have to finish in order) — only call the whole lead "Completed"
-  // once nothing else is left outstanding.
-  const allDone = await allRoundsDone(supabase, leadId, input.executedDate);
+  // once nothing else is left outstanding AND a genuine session has happened
+  // AND contact details are on file.
+  const shouldComplete = await shouldAutoComplete(supabase, leadId, {
+    round1ExecutedDate: input.executedDate,
+    extraActivity: input.activityUndertaken,
+  });
 
   const { error } = await supabase
     .from("leads")
     .update({
-      status: allDone ? "Activity Completed" : "Planned",
+      status: shouldComplete ? "Activity Completed" : "Planned",
       executed_date: input.executedDate,
       activity_undertaken: input.activityUndertaken ?? null,
       girls_reached: input.girlsReached ?? null,
@@ -276,6 +386,43 @@ export async function cancelLead(leadId: string, input: CancelInput) {
   revalidatePath(`/leads/${leadId}`);
   revalidatePath("/calendar");
   revalidatePath("/admin");
+}
+
+/**
+ * Reverses a wrongly-completed lead: sets it back to "Planned" and clears
+ * executed_date, so it re-enters the normal pipeline instead of sitting in
+ * Completed with nothing genuine behind it. For leads that were marked
+ * executed off a flyer/email/meeting instead of an actual awareness
+ * session — see AWARENESS_SESSION_ACTIVITIES in lib/outreach-taxonomy.ts
+ * and the /admin/needs-session audit page this feeds. Admin-only: this
+ * undoes someone else's completed status, not a routine edit.
+ */
+export async function reopenLead(leadId: string, reason?: string) {
+  await requireAdminForAction();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("leads")
+    .update({
+      status: "Planned",
+      executed_date: null,
+      remarks: await appendRemarks(
+        supabase,
+        "leads",
+        leadId,
+        reason || "No genuine awareness session was recorded — reopened for redo.",
+        "Reopened",
+      ),
+    })
+    .eq("id", leadId);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/calendar");
+  revalidatePath("/admin");
+  revalidatePath("/admin/needs-session");
 }
 
 /** Adds another round (touchpoint) to a lead — round 2, 3, etc. */
@@ -358,21 +505,20 @@ export async function markRoundExecuted(
   // Mirror onto the parent lead: Kanban/admin stats key off `leads.status`
   // directly (they don't look at lead_rounds). Rounds can finish out of
   // order, so only flip to Completed once every round (including this one)
-  // has an executed_date — otherwise keep it Planned since something's still
-  // outstanding.
+  // is resolved AND a genuine session has happened AND contact details are
+  // on file — otherwise keep it Planned, since something's still missing.
   const { data: leadRow } = await supabase
     .from("leads")
     .select("executed_date")
     .eq("id", leadId)
     .single();
-  const allDone = await allRoundsDone(
-    supabase,
-    leadId,
-    leadRow?.executed_date ?? null,
-  );
+  const shouldComplete = await shouldAutoComplete(supabase, leadId, {
+    round1ExecutedDate: leadRow?.executed_date ?? null,
+    extraActivity: input.activityUndertaken,
+  });
   const { error: leadError } = await supabase
     .from("leads")
-    .update({ status: allDone ? "Activity Completed" : "Planned" })
+    .update({ status: shouldComplete ? "Activity Completed" : "Planned" })
     .eq("id", leadId);
   if (leadError) throw new Error(leadError.message);
 
@@ -428,21 +574,20 @@ export async function updateRound(
 
   if (error) throw new Error(error.message);
 
-  // Same re-sync as markRoundExecuted: editing a round's executed_date here
-  // (setting or clearing it) can change whether every round is now done.
+  // Same re-sync as markRoundExecuted: editing a round's executed_date or
+  // activity_undertaken here can change whether every round is now done and
+  // whether a genuine session is now on record.
   const { data: leadRow } = await supabase
     .from("leads")
     .select("executed_date")
     .eq("id", leadId)
     .single();
-  const allDone = await allRoundsDone(
-    supabase,
-    leadId,
-    leadRow?.executed_date ?? null,
-  );
+  const shouldComplete = await shouldAutoComplete(supabase, leadId, {
+    round1ExecutedDate: leadRow?.executed_date ?? null,
+  });
   const { error: leadError } = await supabase
     .from("leads")
-    .update({ status: allDone ? "Activity Completed" : "Planned" })
+    .update({ status: shouldComplete ? "Activity Completed" : "Planned" })
     .eq("id", leadId);
   if (leadError) throw new Error(leadError.message);
 
@@ -454,11 +599,18 @@ export async function updateRound(
 
 /**
  * Marks a round as cancelled — it was planned but isn't happening. Same
- * shape as cancelLead, just targeting a lead_rounds row instead. Doesn't
- * touch the parent lead's own status: a cancelled round never gets an
- * executed_date, so it simply won't count toward the lead being marked
- * Activity Completed via allRoundsDone — the lead stays Planned until either
- * this round is somehow resolved differently or another round covers for it.
+ * shape as cancelLead, just targeting a lead_rounds row instead.
+ *
+ * A cancelled round counts as *resolved* (see allRoundsDone), not pending —
+ * e.g. round 1 was a meeting, round 2's session got halted and is cancelled,
+ * round 3 later holds the actual session: the lead should still resolve to
+ * Activity Completed once round 3 executes, not stay stuck on Planned
+ * because round 2 never got an executed_date. That means cancelling a round
+ * can itself be the action that finishes a lead — if round 1 already
+ * executed and every other round is now resolved (executed or cancelled),
+ * this re-syncs the parent lead to Activity Completed right here, the same
+ * way markRoundExecuted does; nothing else re-checks this after a
+ * cancellation otherwise.
  */
 export async function cancelRound(
   roundId: string,
@@ -487,6 +639,28 @@ export async function cancelRound(
     .eq("id", roundId);
 
   if (error) throw new Error(error.message);
+
+  const { data: leadRow } = await supabase
+    .from("leads")
+    .select("executed_date")
+    .eq("id", leadId)
+    .single();
+  const shouldComplete = await shouldAutoComplete(supabase, leadId, {
+    round1ExecutedDate: leadRow?.executed_date ?? null,
+  });
+  // A cancelled round never carries a session itself — only mark the whole
+  // lead "Activity Completed" if a real session already happened elsewhere.
+  // Otherwise leave `leads.status` as-is: cancelling this round doesn't by
+  // itself close out a lead with no session on record — that's a deliberate
+  // choice made via cancelling round 1 / the lead itself with a Rejected/No
+  // Response reason, not a side effect of resolving one round.
+  if (shouldComplete) {
+    const { error: leadError } = await supabase
+      .from("leads")
+      .update({ status: "Activity Completed" })
+      .eq("id", leadId);
+    if (leadError) throw new Error(leadError.message);
+  }
 
   revalidatePath(`/leads/${leadId}`);
   revalidatePath("/leads");

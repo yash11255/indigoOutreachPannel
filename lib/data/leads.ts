@@ -51,6 +51,17 @@ export async function getLeadRounds(leadId: string): Promise<LeadRound[]> {
   return data ?? [];
 }
 
+/** Every round across every lead — small table (low hundreds of rows), so
+ * fetching it all in one query and grouping by lead_id in memory is cheaper
+ * and simpler than an .in() filter keyed on a potentially large lead-id
+ * list (which hit PostgREST's request-size limit once before). */
+export async function getAllLeadRounds(): Promise<LeadRound[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("lead_rounds").select("*");
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 /** All outreach-update notes logged for a lead, across every round, newest first. */
 export async function getLeadUpdates(leadId: string): Promise<LeadUpdate[]> {
   const supabase = await createClient();

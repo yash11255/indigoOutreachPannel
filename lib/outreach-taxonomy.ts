@@ -145,6 +145,33 @@ export const OUTREACH_ACTIVITIES = [
   "Website listing",
 ].sort((a, b) => a.localeCompare(b));
 
+/** The subset of OUTREACH_ACTIVITIES that count as an actual awareness
+ * session (offline or online) at the institution, as opposed to a
+ * lower-touch outreach step like a flyer, email, or WhatsApp message. A
+ * lead should only be marked "Activity Completed" once one of these has
+ * happened in some round. */
+export const AWARENESS_SESSION_ACTIVITIES = [
+  "Awareness Session - Students",
+  "Awareness session - Faculty",
+  "Community awareness meeting",
+  "Webinar session",
+];
+
+/** Matches AWARENESS_SESSION_ACTIVITIES fuzzily — robust to typos ("Awarness
+ * Session") and to activity_undertaken being a comma-joined multi-value
+ * string ("Flyer distribution, Awareness Session - Students") rather than
+ * one exact taxonomy value. */
+const AWARENESS_SESSION_PATTERN =
+  /aware?ness\s*session|community\s*awareness\s*meeting|webinar\s*session|physical(ly)?\s*session/i;
+
+/** True if any of the given activity_undertaken values (this round's plus
+ * every prior round's) represents a genuine awareness session. */
+export function hasAwarenessSession(
+  activities: (string | null | undefined)[],
+): boolean {
+  return activities.some((a) => !!a && AWARENESS_SESSION_PATTERN.test(a));
+}
+
 /** Shared Google Drive folder where session photos/evidence get uploaded, before pasting the resulting link into the "Google Drive link" field. */
 export const OUTREACH_PHOTOS_FOLDER_URL =
   "https://drive.google.com/drive/u/0/folders/1Q4BVyUoQ3e8z1iDTSBbdP4xbu--YoGAJ";

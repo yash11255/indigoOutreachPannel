@@ -1,11 +1,19 @@
 import { requireAdmin } from "@/lib/data/session";
-import { getLeads } from "@/lib/data/leads";
+import { getLeads, getAllLeadRounds } from "@/lib/data/leads";
 import { getTeams, getDistrictsMaster } from "@/lib/data/lookups";
 import { getAllProfiles } from "@/lib/data/admin";
 import { findMatchingDistrict, normalizeStateName } from "@/lib/india-geo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdminAnalytics, type AnalyticsData } from "@/components/admin-analytics";
-import { STAGE_LABELS, STAGE_ORDER, stageForStatus, type LeadStage } from "@/lib/types";
+import {
+  STAGE_LABELS,
+  STAGE_ORDER,
+  stageForStatus,
+  groupRoundsByLead,
+  totalGirlsReached,
+  totalPlannedGirlsReach,
+  type LeadStage,
+} from "@/lib/types";
 
 function sum(nums: (number | null)[]) {
   return nums.reduce<number>((acc, n) => acc + (n ?? 0), 0);
@@ -20,12 +28,14 @@ const TREND_START_MONTH = 4; // 0-indexed: April=3, May=4
 
 export default async function AdminAnalyticsPage() {
   await requireAdmin();
-  const [leads, teams, profiles, districtsMaster] = await Promise.all([
+  const [leads, rounds, teams, profiles, districtsMaster] = await Promise.all([
     getLeads(),
+    getAllLeadRounds(),
     getTeams(),
     getAllProfiles(),
     getDistrictsMaster(),
   ]);
+  const roundsByLead = groupRoundsByLead(rounds);
 
   const totalLeads = leads.length;
   const stageCounts = emptyStages();
@@ -34,8 +44,8 @@ export default async function AdminAnalyticsPage() {
   const completed = stageCounts.completed;
   const inProgress = stageCounts.outreach_sent + stageCounts.scheduled;
   const stalled = stageCounts.stalled;
-  const plannedGirls = sum(leads.map((l) => l.planned_girls_reach));
-  const girlsReached = sum(leads.map((l) => l.girls_reached));
+  const plannedGirls = sum(leads.map((l) => totalPlannedGirlsReach(l, roundsByLead)));
+  const girlsReached = sum(leads.map((l) => totalGirlsReached(l, roundsByLead)));
 
   const turnaroundDays: number[] = [];
   for (const l of leads) {
@@ -149,8 +159,8 @@ export default async function AdminAnalyticsPage() {
   const girlsReachByTeam = teams
     .map((team) => {
       const teamLeads = leads.filter((l) => l.team_id === team.id);
-      const planned = sum(teamLeads.map((l) => l.planned_girls_reach));
-      const reached = sum(teamLeads.map((l) => l.girls_reached));
+      const planned = sum(teamLeads.map((l) => totalPlannedGirlsReach(l, roundsByLead)));
+      const reached = sum(teamLeads.map((l) => totalGirlsReached(l, roundsByLead)));
       if (planned === 0 && reached === 0) return null;
       return { team: team.name, planned, reached };
     })

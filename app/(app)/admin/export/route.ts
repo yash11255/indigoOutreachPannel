@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { requireAdminOrTeamAdmin } from "@/lib/data/session";
-import { getLeads } from "@/lib/data/leads";
+import { getLeads, getAllLeadRounds } from "@/lib/data/leads";
 import { getTeams } from "@/lib/data/lookups";
 import { getAllProfiles } from "@/lib/data/admin";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -8,9 +8,32 @@ import {
   STAGE_ORDER,
   STAGE_LABELS,
   stageForStatus,
+  groupRoundsByLead,
+  totalGirlsReached,
+  totalStudentsReached,
+  totalPlannedGirlsReach,
   type LeadStage,
   type Lead,
 } from "@/lib/types";
+
+/**
+ * Reach numbers can land on round 1 (the lead row) or any later round — the
+ * common case now is meeting/outreach rounds first, with the real awareness
+ * session added afterward. Every sheet in this export reads girls_reached /
+ * no_of_institutions / planned_girls_reach straight off the Lead row, so
+ * folding each lead's round totals into those same fields once, up front,
+ * means every sheet below stays correct without having to thread the rounds
+ * data through each helper individually.
+ */
+function withRoundTotals(leads: Lead[], rounds: Awaited<ReturnType<typeof getAllLeadRounds>>): Lead[] {
+  const roundsByLead = groupRoundsByLead(rounds);
+  return leads.map((l) => ({
+    ...l,
+    girls_reached: totalGirlsReached(l, roundsByLead),
+    no_of_institutions: totalStudentsReached(l, roundsByLead),
+    planned_girls_reach: totalPlannedGirlsReach(l, roundsByLead),
+  }));
+}
 
 const ALL_LEAD_COLUMNS = [
   { header: "Institution", key: "institution", width: 34 },
@@ -507,11 +530,13 @@ async function inactiveUsersReport(restrictToTeamId: string | null): Promise<Res
  * appended at the bottom of that same tab (not a separate sheet).
  */
 async function masterSheetReport(restrictToTeamId: string | null): Promise<Response> {
-  const [allLeads, teams, profiles] = await Promise.all([
+  const [allLeadsRaw, rounds, teams, profiles] = await Promise.all([
     getLeads(),
+    getAllLeadRounds(),
     getTeams(),
     getAllProfiles(),
   ]);
+  const allLeads = withRoundTotals(allLeadsRaw, rounds);
   const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? "—";
   const memberEmailById = new Map(profiles.map((p) => [p.id, p.email]));
   const leads = restrictToTeamId
@@ -612,11 +637,13 @@ export async function GET(request: Request) {
   const selectedColumns =
     columnsParamValues.length > 0 ? new Set(columnsParamValues) : null;
 
-  const [allLeads, teams, profiles] = await Promise.all([
+  const [allLeadsRaw, rounds, teams, profiles] = await Promise.all([
     getLeads(),
+    getAllLeadRounds(),
     getTeams(),
     getAllProfiles(),
   ]);
+  const allLeads = withRoundTotals(allLeadsRaw, rounds);
   const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? "—";
   const memberEmailById = new Map(profiles.map((p) => [p.id, p.email]));
 

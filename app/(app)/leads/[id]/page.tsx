@@ -103,6 +103,14 @@ export default async function LeadDetailPage({
   );
   const lead1Resolved =
     !!lead.executed_date || stageForStatus(lead.status) === "stalled";
+  const hasContactDetails = !!(
+    lead.contact_person && (lead.mobile_no || lead.email_id)
+  );
+  // Every touchpoint recorded anywhere on this lead — an institution only
+  // needs one genuine awareness session across its whole history, not one
+  // per round, so each round's "Mark as executed" dialog checks against all
+  // of these, not just itself.
+  const allActivities = [lead.activity_undertaken, ...rounds.map((r) => r.activity_undertaken)];
 
   return (
     <div className="flex flex-col gap-6">
@@ -234,7 +242,7 @@ export default async function LeadDetailPage({
               Round 1 — {lead.planned_activity || "Untitled"}
             </h2>
             <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge status={lead.status} />
+              <StatusBadge status={timeline[0].status} />
               {canEdit && !lead1Resolved && (
                 <>
                   <RescheduleDialog
@@ -250,10 +258,12 @@ export default async function LeadDetailPage({
                   />
                   <MoveToExecutionDialog
                     title={lead.institution_name}
-                    initialActivityUndertaken={lead.activity_undertaken}
+                    initialActivityUndertaken={lead.activity_undertaken ?? lead.planned_activity}
                     initialGirlsReached={lead.girls_reached}
                     initialTotalStudents={lead.no_of_institutions}
                     initialDriveLink={lead.drive_link}
+                    priorSessionActivities={rounds.map((r) => r.activity_undertaken)}
+                    hasContactDetails={hasContactDetails}
                     onConfirm={markLeadExecuted.bind(null, lead.id)}
                     trigger={
                       <Button size="sm" variant="outline">
@@ -323,10 +333,12 @@ export default async function LeadDetailPage({
                       />
                       <MoveToExecutionDialog
                         title={`Round ${round.sequence_no}`}
-                        initialActivityUndertaken={round.activity_undertaken}
+                        initialActivityUndertaken={round.activity_undertaken ?? round.title}
                         initialGirlsReached={round.girls_reached}
                         initialTotalStudents={round.no_of_institutions}
                         initialDriveLink={round.drive_link}
+                        priorSessionActivities={allActivities}
+                        hasContactDetails={hasContactDetails}
                         onConfirm={markRoundExecuted.bind(
                           null,
                           round.id,

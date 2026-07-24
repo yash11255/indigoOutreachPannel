@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdminOrTeamAdmin } from "@/lib/data/session";
-import { getLeads } from "@/lib/data/leads";
+import { getLeads, getAllLeadRounds } from "@/lib/data/leads";
 import { getTeams } from "@/lib/data/lookups";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -25,6 +25,8 @@ import {
   canEditLeads,
   buildMemberBreakdown,
   buildMemberInstitutions,
+  groupRoundsByLead,
+  totalGirlsReached,
   type LeadStage,
 } from "@/lib/types";
 
@@ -144,7 +146,12 @@ export default async function AdminSegmentPage({
   if (!region && !teamId && !subTeam && !state && !district && !date && !stageFilter)
     notFound();
 
-  const [allLeads, teams] = await Promise.all([getLeads(), getTeams()]);
+  const [allLeads, rounds, teams] = await Promise.all([
+    getLeads(),
+    getAllLeadRounds(),
+    getTeams(),
+  ]);
+  const roundsByLead = groupRoundsByLead(rounds);
   const team = teamId ? teams.find((t) => t.id === teamId) : undefined;
   if (teamId && !team) notFound();
 
@@ -193,7 +200,7 @@ export default async function AdminSegmentPage({
           <h1 className="text-xl font-semibold">{title}</h1>
           <p className="text-sm text-neutral-500">
             {leads.length} lead{leads.length === 1 ? "" : "s"} · girls reached{" "}
-            {sum(leads.map((l) => l.girls_reached)).toLocaleString("en-IN")}
+            {sum(leads.map((l) => totalGirlsReached(l, roundsByLead))).toLocaleString("en-IN")}
           </p>
         </div>
         <form action="/admin/export" className="flex flex-wrap items-end gap-4">

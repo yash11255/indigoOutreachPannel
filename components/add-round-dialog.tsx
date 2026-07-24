@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { createLeadRound } from "@/lib/actions/leads";
-import { OUTREACH_ACTIVITIES, OTHER_VALUE } from "@/lib/outreach-taxonomy";
+import { OUTREACH_ACTIVITIES, OTHER_VALUE, hasAwarenessSession } from "@/lib/outreach-taxonomy";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +34,9 @@ export function AddRoundDialog({ leadId, trigger }: { leadId: string; trigger: R
 
   const activityIsOther = activity === OTHER_VALUE;
   const resolvedActivity = activityIsOther ? activityOtherText : activity;
+  // A meeting/email/flyer round has no "girls reached" to plan for — only
+  // show the headcount fields once a genuine session activity is picked.
+  const isSessionActivity = hasAwarenessSession([resolvedActivity]);
 
   function submit() {
     if (!plannedDate) {
@@ -108,28 +111,35 @@ export function AddRoundDialog({ leadId, trigger }: { leadId: string; trigger: R
               required
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="round_total_students">Total students</Label>
-              <Input
-                id="round_total_students"
-                type="number"
-                inputMode="numeric"
-                value={totalStudents}
-                onChange={(e) => setTotalStudents(e.target.value)}
-              />
+          {isSessionActivity ? (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="round_total_students">Total students</Label>
+                <Input
+                  id="round_total_students"
+                  type="number"
+                  inputMode="numeric"
+                  value={totalStudents}
+                  onChange={(e) => setTotalStudents(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="round_total_girls">Total girls</Label>
+                <Input
+                  id="round_total_girls"
+                  type="number"
+                  inputMode="numeric"
+                  value={totalGirls}
+                  onChange={(e) => setTotalGirls(e.target.value)}
+                />
+              </div>
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="round_total_girls">Total girls</Label>
-              <Input
-                id="round_total_girls"
-                type="number"
-                inputMode="numeric"
-                value={totalGirls}
-                onChange={(e) => setTotalGirls(e.target.value)}
-              />
-            </div>
-          </div>
+          ) : (
+            <p className="text-xs text-neutral-400">
+              Total students / Total girls only apply once this round is an
+              awareness session.
+            </p>
+          )}
         </div>
         <DialogFooter>
           <Button onClick={submit} disabled={pending}>

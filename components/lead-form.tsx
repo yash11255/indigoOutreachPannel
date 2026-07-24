@@ -12,6 +12,7 @@ import {
   OUTREACH_ACTIVITIES,
   OTHER_VALUE,
   OUTREACH_PHOTOS_FOLDER_URL,
+  hasAwarenessSession,
 } from "@/lib/outreach-taxonomy";
 import { SelectWithOther } from "@/components/select-with-other";
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,14 @@ export function LeadFormDialog({
   const [status, setStatus] = useState(lead?.status ?? "Planned");
   const [teamId, setTeamId] = useState(lead?.team_id ?? defaultTeamId ?? "");
   const [pillar, setPillar] = useState(lead?.institution_type ?? "");
+  const [plannedActivity, setPlannedActivity] = useState(lead?.planned_activity ?? "");
+  // Only a genuine awareness session needs a headcount planned in advance —
+  // a meeting, email, or flyer round doesn't have "girls reached" to plan
+  // for. Always shown in edit mode too, so a field that already has a real
+  // number in it from a prior save never silently disappears/gets wiped.
+  const isSessionActivity = hasAwarenessSession([plannedActivity]);
+  const showReachFields =
+    isSessionActivity || !isCreate || lead?.no_of_institutions != null || lead?.planned_girls_reach != null;
 
   const districtsForState = useMemo(
     () => districtsMaster.filter((d) => d.state === state_).map((d) => d.district),
@@ -307,6 +316,7 @@ export function LeadFormDialog({
             options={OUTREACH_ACTIVITIES}
             defaultValue={lead?.planned_activity}
             required={isCreate}
+            onValueChange={setPlannedActivity}
           />
           <div className="flex flex-col gap-2">
             <Label htmlFor="planned_date">Planned date *</Label>
@@ -319,28 +329,42 @@ export function LeadFormDialog({
             />
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="no_of_institutions">Total students{isCreate ? " *" : ""}</Label>
-            <Input
-              id="no_of_institutions"
-              name="no_of_institutions"
-              type="number"
-              inputMode="numeric"
-              defaultValue={lead?.no_of_institutions ?? ""}
-              required={isCreate}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="planned_girls_reach">Planned girls reach{isCreate ? " *" : ""}</Label>
-            <Input
-              id="planned_girls_reach"
-              name="planned_girls_reach"
-              type="number"
-              inputMode="numeric"
-              defaultValue={lead?.planned_girls_reach ?? ""}
-              required={isCreate}
-            />
-          </div>
+          {showReachFields && (
+            <>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="no_of_institutions">
+                  Total students{isCreate && isSessionActivity ? " *" : ""}
+                </Label>
+                <Input
+                  id="no_of_institutions"
+                  name="no_of_institutions"
+                  type="number"
+                  inputMode="numeric"
+                  defaultValue={lead?.no_of_institutions ?? ""}
+                  required={isCreate && isSessionActivity}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="planned_girls_reach">
+                  Planned girls reach{isCreate && isSessionActivity ? " *" : ""}
+                </Label>
+                <Input
+                  id="planned_girls_reach"
+                  name="planned_girls_reach"
+                  type="number"
+                  inputMode="numeric"
+                  defaultValue={lead?.planned_girls_reach ?? ""}
+                  required={isCreate && isSessionActivity}
+                />
+              </div>
+            </>
+          )}
+          {!showReachFields && (
+            <p className="text-xs text-neutral-400 sm:col-span-2">
+              Total students / Planned girls reach only apply once this is an
+              awareness session — pick a session activity above to plan numbers for it.
+            </p>
+          )}
 
           <div className="flex flex-col gap-2">
             <Label>Status</Label>

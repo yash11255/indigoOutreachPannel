@@ -122,7 +122,14 @@ export function buildLeadTimeline(
     title: lead.planned_activity || "Round 1",
     plannedDate: lead.planned_date,
     executedDate: lead.executed_date,
-    status: lead.status,
+    // Round 1 lives directly on the `leads` row, sharing its `status` column
+    // with the lead's own *overall* pipeline status — but those diverge once
+    // a lead can stay "Planned" overall even after round 1 is individually
+    // executed (no genuine session recorded yet anywhere). This step should
+    // reflect what happened to round 1 itself: an executed_date means it was
+    // genuinely carried out, full stop (a cancellation never sets
+    // executed_date, so this can't collide with Rejected/No Response).
+    status: lead.executed_date ? "Activity Completed" : lead.status,
     activityUndertaken: lead.activity_undertaken,
     girlsReached: lead.girls_reached,
     roundId: null,
@@ -141,6 +148,57 @@ export function buildLeadTimeline(
       roundId: r.id,
     }));
   return [round1, ...rest];
+}
+
+/** Groups a flat list of lead_rounds by their parent lead_id, for O(1) lookup. */
+export function groupRoundsByLead(rounds: LeadRound[]): Map<string, LeadRound[]> {
+  const map = new Map<string, LeadRound[]>();
+  for (const r of rounds) {
+    const arr = map.get(r.lead_id) ?? [];
+    arr.push(r);
+    map.set(r.lead_id, arr);
+  }
+  return map;
+}
+
+/**
+ * Reach numbers (planned or actual) can land on round 1 (the lead row
+ * itself) or on any later round — the common case now is meeting/outreach
+ * rounds first, with the real awareness session added as round 2, 3, etc.
+ * Any dashboard/export that only reads the lead's own girls_reached /
+ * no_of_institutions / planned_girls_reach column silently undercounts every
+ * lead whose numbers were entered on a later round instead of round 1. These
+ * helpers sum across both so metrics stay accurate regardless of which round
+ * carried the real session.
+ */
+export function totalGirlsReached(
+  lead: Pick<Lead, "id" | "girls_reached">,
+  roundsByLead: Map<string, LeadRound[]>,
+): number {
+  const rounds = roundsByLead.get(lead.id) ?? [];
+  return (lead.girls_reached ?? 0) + rounds.reduce((acc, r) => acc + (r.girls_reached ?? 0), 0);
+}
+
+export function totalStudentsReached(
+  lead: Pick<Lead, "id" | "no_of_institutions">,
+  roundsByLead: Map<string, LeadRound[]>,
+): number {
+  const rounds = roundsByLead.get(lead.id) ?? [];
+  return (
+    (lead.no_of_institutions ?? 0) +
+    rounds.reduce((acc, r) => acc + (r.no_of_institutions ?? 0), 0)
+  );
+}
+
+export function totalPlannedGirlsReach(
+  lead: Pick<Lead, "id" | "planned_girls_reach">,
+  roundsByLead: Map<string, LeadRound[]>,
+): number {
+  const rounds = roundsByLead.get(lead.id) ?? [];
+  return (
+    (lead.planned_girls_reach ?? 0) +
+    rounds.reduce((acc, r) => acc + (r.planned_girls_reach ?? 0), 0)
+  );
 }
 
 export type StatusLookup = {

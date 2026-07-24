@@ -7,6 +7,9 @@ import { CreateTeamForm } from "./create-team-form";
 import { SearchableUsersTable } from "./searchable-users-table";
 import { SearchableTeamsTable } from "./searchable-teams-table";
 
+/** Selectable even before anyone's home_team is actually set to them yet. */
+const EXTRA_HOME_TEAMS = ["Xiaomi Edge", "Xiaomi MI Shala"];
+
 export default async function AdminUsersPage() {
   await requireAdmin();
   const [profiles, teams, subTeamsByTeam] = await Promise.all([
@@ -15,7 +18,10 @@ export default async function AdminUsersPage() {
     getSubTeamsByTeam(),
   ]);
   const homeTeams = Array.from(
-    new Set(profiles.map((p) => p.home_team).filter((t): t is string => !!t)),
+    new Set([
+      ...profiles.map((p) => p.home_team).filter((t): t is string => !!t),
+      ...EXTRA_HOME_TEAMS,
+    ]),
   ).sort();
 
   return (

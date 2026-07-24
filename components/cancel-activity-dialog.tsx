@@ -41,7 +41,15 @@ export function CancelActivityDialog({
   const [status, setStatus] = useState<string>(CANCEL_STATUSES[0]);
   const [remarks, setRemarks] = useState("");
 
+  const isNoResponse = status === "No Response";
+
   function submit() {
+    if (isNoResponse && !remarks.trim()) {
+      toast.error(
+        "Confirm the institute really isn't responding — add remarks (follow-up attempts, over what period) before confirming.",
+      );
+      return;
+    }
     startTransition(async () => {
       try {
         await onConfirm({ status: status as CancelInput["status"], remarks: remarks || undefined });
@@ -76,8 +84,19 @@ export function CancelActivityDialog({
               </SelectContent>
             </Select>
           </div>
+          {isNoResponse && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-3">
+              <p className="text-sm font-medium text-amber-800">
+                Is the institute really not responding? Add remarks confirming
+                what was tried (calls, emails, follow-ups) before marking this
+                No Response.
+              </p>
+            </div>
+          )}
           <div className="flex flex-col gap-2">
-            <Label htmlFor="cancel_remarks">Remarks</Label>
+            <Label htmlFor="cancel_remarks">
+              Remarks{isNoResponse && " *"}
+            </Label>
             <Textarea
               id="cancel_remarks"
               value={remarks}

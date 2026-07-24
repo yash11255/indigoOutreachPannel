@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/data/session";
-import { getLeads } from "@/lib/data/leads";
+import { getLeads, getAllLeadRounds } from "@/lib/data/leads";
 import { getTeams } from "@/lib/data/lookups";
 import { getAllProfiles } from "@/lib/data/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +26,9 @@ import {
   STAGE_ORDER,
   stageForStatus,
   buildMemberBreakdown,
+  groupRoundsByLead,
+  totalGirlsReached,
+  totalPlannedGirlsReach,
   type LeadStage,
 } from "@/lib/types";
 
@@ -35,11 +38,13 @@ function sum(nums: (number | null)[]) {
 
 export default async function AdminPage() {
   await requireAdmin();
-  const [leads, teams, profiles] = await Promise.all([
+  const [leads, rounds, teams, profiles] = await Promise.all([
     getLeads(),
+    getAllLeadRounds(),
     getTeams(),
     getAllProfiles(),
   ]);
+  const roundsByLead = groupRoundsByLead(rounds);
 
   const byStage = STAGE_ORDER.map((stage) => ({
     stage,
@@ -54,8 +59,8 @@ export default async function AdminPage() {
       completed: teamLeads.filter(
         (l) => stageForStatus(l.status) === "completed",
       ).length,
-      plannedGirls: sum(teamLeads.map((l) => l.planned_girls_reach)),
-      girlsReached: sum(teamLeads.map((l) => l.girls_reached)),
+      plannedGirls: sum(teamLeads.map((l) => totalPlannedGirlsReach(l, roundsByLead))),
+      girlsReached: sum(teamLeads.map((l) => totalGirlsReached(l, roundsByLead))),
     };
   });
 
@@ -174,8 +179,8 @@ export default async function AdminPage() {
         region,
         total: regionLeads.length,
         completed,
-        plannedGirls: sum(regionLeads.map((l) => l.planned_girls_reach)),
-        girlsReached: sum(regionLeads.map((l) => l.girls_reached)),
+        plannedGirls: sum(regionLeads.map((l) => totalPlannedGirlsReach(l, roundsByLead))),
+        girlsReached: sum(regionLeads.map((l) => totalGirlsReached(l, roundsByLead))),
         stages,
         states,
         leads: sortedLeads,
@@ -212,8 +217,8 @@ export default async function AdminPage() {
         region: stateLeads[0]?.region ?? null,
         total: stateLeads.length,
         completed: stages.completed,
-        plannedGirls: sum(stateLeads.map((l) => l.planned_girls_reach)),
-        girlsReached: sum(stateLeads.map((l) => l.girls_reached)),
+        plannedGirls: sum(stateLeads.map((l) => totalPlannedGirlsReach(l, roundsByLead))),
+        girlsReached: sum(stateLeads.map((l) => totalGirlsReached(l, roundsByLead))),
         stages,
         leads: sortedLeads,
       };

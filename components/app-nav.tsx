@@ -38,6 +38,8 @@ export function AppNav({
       ? [
           { href: "/admin", label: "Admin" },
           { href: "/admin/analytics", label: "Analytics" },
+          { href: "/admin/scholarship", label: "Scholarship" },
+          { href: "/admin/needs-session", label: "Needs Session" },
           { href: "/admin/users", label: "Users" },
           { href: "/admin/logs", label: "Logs" },
         ]

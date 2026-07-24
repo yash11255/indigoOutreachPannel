@@ -25,6 +25,7 @@ export function SelectWithOther({
   placeholder,
   disabled,
   required,
+  onValueChange,
 }: {
   name: string;
   label: string;
@@ -34,6 +35,8 @@ export function SelectWithOther({
   disabled?: boolean;
   /** Purely a visual "*" cue — the hidden input backing this field can't use native HTML validation, so actual enforcement happens server-side. */
   required?: boolean;
+  /** Notified with the resolved value (the "Other" free text when applicable) whenever it changes — for callers that need to react to what was picked, e.g. showing/hiding other fields based on the activity type. */
+  onValueChange?: (resolvedValue: string) => void;
 }) {
   const initialIsOther = !!defaultValue && !options.includes(defaultValue);
   const [selected, setSelected] = useState(initialIsOther ? OTHER_VALUE : (defaultValue ?? ""));
@@ -41,13 +44,23 @@ export function SelectWithOther({
 
   const isOther = selected === OTHER_VALUE;
 
+  function selectValue(v: string) {
+    setSelected(v);
+    onValueChange?.(v === OTHER_VALUE ? otherText : v);
+  }
+
+  function changeOtherText(v: string) {
+    setOtherText(v);
+    onValueChange?.(v);
+  }
+
   return (
     <div className="flex flex-col gap-2">
       <Label htmlFor={name}>
         {label}
         {required ? " *" : ""}
       </Label>
-      <Select value={selected} onValueChange={(v) => setSelected(v ?? "")} disabled={disabled}>
+      <Select value={selected} onValueChange={(v) => selectValue(v ?? "")} disabled={disabled}>
         <SelectTrigger id={name}>
           <SelectValue>
             {(value: string) => {
@@ -69,7 +82,7 @@ export function SelectWithOther({
       {isOther && (
         <Input
           value={otherText}
-          onChange={(e) => setOtherText(e.target.value)}
+          onChange={(e) => changeOtherText(e.target.value)}
           placeholder="Specify…"
         />
       )}

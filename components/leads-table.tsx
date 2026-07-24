@@ -183,8 +183,9 @@ export function LeadsTable({
                         {!lead.executed_date && (
                           <MoveToExecutionDialog
                             title={lead.institution_name}
-                            initialActivityUndertaken={lead.activity_undertaken}
+                            initialActivityUndertaken={lead.activity_undertaken ?? lead.planned_activity}
                             initialGirlsReached={lead.girls_reached}
+                            hasContactDetails={!!(lead.contact_person && (lead.mobile_no || lead.email_id))}
                             onConfirm={markLeadExecuted.bind(null, lead.id)}
                             trigger={
                               <Button size="sm" variant="outline">
