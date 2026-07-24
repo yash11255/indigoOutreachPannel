@@ -20,6 +20,7 @@ import {
   buildMemberBreakdown,
   canEditLeads,
   type Lead,
+  type LeadRound,
   type RegionState,
   type StatusLookup,
   type Team,
@@ -38,6 +39,7 @@ const SORT_LABELS: Record<SortOrder, string> = {
 
 export function LeadsView({
   leads,
+  rounds,
   teams,
   statuses,
   regionsStates,
@@ -47,6 +49,7 @@ export function LeadsView({
   currentUserName,
 }: {
   leads: Lead[];
+  rounds: LeadRound[];
   teams: Team[];
   statuses: StatusLookup[];
   regionsStates: RegionState[];
@@ -161,6 +164,7 @@ export function LeadsView({
         <TabsContent value="table">
           <LeadsTable
             leads={visibleLeads}
+            rounds={rounds}
             teams={teams}
             showTeamColumn={isAdmin}
             canEdit={canEdit}
@@ -169,6 +173,7 @@ export function LeadsView({
         <TabsContent value="kanban">
           <LeadsKanban
             leads={visibleLeads}
+            rounds={rounds}
             teams={teams}
             showTeamLabel={isAdmin}
             canEdit={canEdit}

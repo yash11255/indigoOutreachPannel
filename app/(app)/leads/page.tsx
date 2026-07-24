@@ -1,5 +1,5 @@
 import { requireProfile } from "@/lib/data/session";
-import { getLeads } from "@/lib/data/leads";
+import { getLeads, getAllLeadRounds } from "@/lib/data/leads";
 import { getTeams, getStatuses, getRegionsStates, getDistrictsMaster } from "@/lib/data/lookups";
 import { DueBanner } from "@/components/due-banner";
 import { LeadsView } from "./leads-view";
@@ -13,9 +13,12 @@ export default async function LeadsPage() {
   // is allowed to see (their own leads, plus their direct reports' if
   // they're someone's manager, plus their team — or just one sub-division of
   // it, if they're a view-only team_admin scoped that narrowly; everything
-  // for full admins).
-  const [leads, teams, statuses, regionsStates, districtsMaster] = await Promise.all([
+  // for full admins). Same RLS scoping applies to lead_rounds, needed so the
+  // list view's quick "Mark as executed" button can target whichever round
+  // is actually still pending, not just round 1.
+  const [leads, rounds, teams, statuses, regionsStates, districtsMaster] = await Promise.all([
     getLeads(),
+    getAllLeadRounds(),
     getTeams(),
     getStatuses(),
     getRegionsStates(),
@@ -47,6 +50,7 @@ export default async function LeadsPage() {
       <DueBanner leads={dueLeads} />
       <LeadsView
         leads={leads}
+        rounds={rounds}
         teams={teams}
         statuses={statuses}
         regionsStates={regionsStates}

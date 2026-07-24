@@ -1,28 +1,56 @@
 "use client";
 
-import { useOptimistic } from "react";
+import { useMemo, useOptimistic } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/stage-badge";
 import { MoveToExecutionDialog } from "@/components/move-to-execution-dialog";
-import { markLeadExecuted, type MarkExecutedInput } from "@/lib/actions/leads";
+import { markLeadExecuted, markRoundExecuted, type MarkExecutedInput } from "@/lib/actions/leads";
 import { Button } from "@/components/ui/button";
 import { STAGE_LABELS, STAGE_ORDER, stageForStatus } from "@/lib/types";
-import type { Lead, Team } from "@/lib/types";
+import type { Lead, LeadRound, Team } from "@/lib/types";
+
+/** Same as leads-table.tsx's helper: the one round a lead's quick execute
+ * button should target — round 1 if unresolved, else whichever later round
+ * is next in line, so the button doesn't vanish once round 1 is done while a
+ * later round is still pending. */
+function findPendingRound(
+  lead: Lead,
+  roundsByLead: Map<string, LeadRound[]>,
+): { kind: "lead" } | { kind: "round"; round: LeadRound } | null {
+  if (!lead.executed_date) return { kind: "lead" };
+  const rounds = (roundsByLead.get(lead.id) ?? [])
+    .filter((r) => !r.executed_date && stageForStatus(r.status) !== "stalled")
+    .sort((a, b) => a.sequence_no - b.sequence_no);
+  return rounds.length > 0 ? { kind: "round", round: rounds[0] } : null;
+}
 
 export function LeadsKanban({
   leads,
+  rounds = [],
   teams,
   showTeamLabel,
   canEdit = true,
 }: {
   leads: Lead[];
+  /** Every round across every lead shown — grouped internally per lead so the
+   * quick execute button can target whichever round is actually pending. */
+  rounds?: LeadRound[];
   teams: Team[];
   showTeamLabel: boolean;
   /** False for a view-only role (team_admin) — hides the "Mark as executed" action. */
   canEdit?: boolean;
 }) {
   const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? "—";
+  const roundsByLead = useMemo(() => {
+    const map = new Map<string, LeadRound[]>();
+    for (const r of rounds) {
+      const arr = map.get(r.lead_id) ?? [];
+      arr.push(r);
+      map.set(r.lead_id, arr);
+    }
+    return map;
+  }, [rounds]);
 
   // With 1000+ leads, revalidating /leads after a mutation can take several
   // seconds — without this, confirming "Mark as executed" closes the dialog
@@ -37,9 +65,17 @@ export function LeadsKanban({
       ),
   );
 
-  async function handleConfirm(leadId: string, input: MarkExecutedInput) {
+  async function handleConfirm(
+    pending: { kind: "lead" } | { kind: "round"; round: LeadRound },
+    leadId: string,
+    input: MarkExecutedInput,
+  ) {
     markExecutedOptimistically(leadId);
-    await markLeadExecuted(leadId, input);
+    if (pending.kind === "lead") {
+      await markLeadExecuted(leadId, input);
+    } else {
+      await markRoundExecuted(pending.round.id, leadId, input);
+    }
   }
 
   return (
@@ -62,49 +98,81 @@ export function LeadsKanban({
               </span>
             </div>
             <div className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto pr-1">
-              {stageLeads.map((lead) => (
-                <Card key={lead.id} className="gap-2 py-3">
-                  <CardHeader className="px-3">
-                    <CardTitle className="text-sm">
-                      <Link
-                        href={`/leads/${lead.id}`}
-                        className="hover:underline"
-                      >
-                        {lead.institution_name}
-                      </Link>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-2 px-3 text-xs text-neutral-600">
-                    <div>{lead.responsible_member || "—"}</div>
-                    {showTeamLabel && <div>{teamName(lead.team_id)}</div>}
-                    {lead.sub_team && <div>{lead.sub_team}</div>}
-                    <div>
-                      {[lead.region, lead.state].filter(Boolean).join(" / ") ||
-                        "—"}
-                    </div>
-                    <div>Planned: {lead.planned_date ?? "—"}</div>
-                    <StatusBadge status={lead.status} />
-                    {canEdit && !lead.executed_date && (
-                      <MoveToExecutionDialog
-                        title={lead.institution_name}
-                        initialActivityUndertaken={lead.activity_undertaken ?? lead.planned_activity}
-                        initialGirlsReached={lead.girls_reached}
-                        hasContactDetails={!!(lead.contact_person && (lead.mobile_no || lead.email_id))}
-                        onConfirm={(input) => handleConfirm(lead.id, input)}
-                        trigger={
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="mt-1 w-full"
-                          >
-                            Mark as executed
-                          </Button>
-                        }
-                      />
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+              {stageLeads.map((lead) => {
+                const pending = findPendingRound(lead, roundsByLead);
+                const hasContactDetails = !!(
+                  lead.contact_person && (lead.mobile_no || lead.email_id)
+                );
+                return (
+                  <Card key={lead.id} className="gap-2 py-3">
+                    <CardHeader className="px-3">
+                      <CardTitle className="text-sm">
+                        <Link
+                          href={`/leads/${lead.id}`}
+                          className="hover:underline"
+                        >
+                          {lead.institution_name}
+                        </Link>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-2 px-3 text-xs text-neutral-600">
+                      <div>{lead.responsible_member || "—"}</div>
+                      {showTeamLabel && <div>{teamName(lead.team_id)}</div>}
+                      {lead.sub_team && <div>{lead.sub_team}</div>}
+                      <div>
+                        {[lead.region, lead.state].filter(Boolean).join(" / ") ||
+                          "—"}
+                      </div>
+                      <div>Planned: {lead.planned_date ?? "—"}</div>
+                      <StatusBadge status={lead.status} />
+                      {canEdit && pending?.kind === "lead" && (
+                        <MoveToExecutionDialog
+                          title={lead.institution_name}
+                          initialActivityUndertaken={lead.activity_undertaken ?? lead.planned_activity}
+                          initialGirlsReached={lead.girls_reached}
+                          hasContactDetails={hasContactDetails}
+                          onConfirm={(input) => handleConfirm(pending, lead.id, input)}
+                          trigger={
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="mt-1 w-full"
+                            >
+                              Mark as executed
+                            </Button>
+                          }
+                        />
+                      )}
+                      {canEdit && pending?.kind === "round" && (
+                        <MoveToExecutionDialog
+                          title={`Round ${pending.round.sequence_no} — ${lead.institution_name}`}
+                          initialActivityUndertaken={
+                            pending.round.activity_undertaken ?? pending.round.title
+                          }
+                          initialGirlsReached={pending.round.girls_reached}
+                          initialTotalStudents={pending.round.no_of_institutions}
+                          initialDriveLink={pending.round.drive_link}
+                          priorSessionActivities={[
+                            lead.activity_undertaken,
+                            ...(roundsByLead.get(lead.id) ?? []).map((r) => r.activity_undertaken),
+                          ]}
+                          hasContactDetails={hasContactDetails}
+                          onConfirm={(input) => handleConfirm(pending, lead.id, input)}
+                          trigger={
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="mt-1 w-full"
+                            >
+                              Mark as executed
+                            </Button>
+                          }
+                        />
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
               {stageLeads.length === 0 && (
                 <p className="px-1 text-xs text-neutral-400">Nothing here.</p>
               )}

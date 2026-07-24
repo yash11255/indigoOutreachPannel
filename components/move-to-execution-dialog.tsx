@@ -122,6 +122,14 @@ export function MoveToExecutionDialog({
       );
       return;
     }
+    if (!hadAwarenessSession) {
+      const proceed = window.confirm(
+        "No awareness session planned or held at this institution yet.\n\n" +
+          "This will NOT mark the lead as completed — it stays \"Planned\" until a real session happens in some round.\n\n" +
+          "Continue marking this round executed anyway?",
+      );
+      if (!proceed) return;
+    }
     startTransition(async () => {
       try {
         await onConfirm({

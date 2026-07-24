@@ -113,13 +113,26 @@ export default async function LeadDetailPage({
   // per round, so each round's "Mark as executed" dialog checks against all
   // of these, not just itself.
   const allActivities = [lead.activity_undertaken, ...rounds.map((r) => r.activity_undertaken)];
-  // The top-level "Drop lead" button: available at any stage as long as the
-  // lead isn't already resolved and no genuine session has happened yet —
-  // once a real session is on record, dropping it should go through the
-  // normal per-round Cancel action instead, not this shortcut.
+  // "Completed" really covers two different situations: a lead with a
+  // genuine session on record (fully done — the actual goal), vs. a lead
+  // where no session has happened yet but at least one round genuinely was
+  // executed (a meeting, an email, a call — real effort, just not the
+  // session itself). The second case is "partially" done, not untouched —
+  // it shouldn't get lumped in with a lead nobody has done anything on yet.
+  const hasAnyRoundExecuted =
+    !!lead.executed_date || rounds.some((r) => !!r.executed_date);
+  const hasGenuineSession = hasAwarenessSession(allActivities);
+  const isPartiallyComplete =
+    stageForStatus(lead.status) === "planned" && hasAnyRoundExecuted && !hasGenuineSession;
+  // The top-level "Drop lead" button: only offered for a lead nobody has
+  // touched yet at all — once any round has genuinely been executed
+  // (partial progress), it shouldn't be casually dropped to Inactive via
+  // this shortcut; use the per-round Cancel action instead if it truly
+  // needs to end there, so the reason for closing it gets recorded properly.
   const leadAlreadyResolved =
     lead.status === "Activity Completed" || stageForStatus(lead.status) === "stalled";
-  const canDropLead = canEdit && !leadAlreadyResolved && !hasAwarenessSession(allActivities);
+  const canDropLead =
+    canEdit && !leadAlreadyResolved && !hasGenuineSession && !hasAnyRoundExecuted;
 
   return (
     <div className="flex flex-col gap-6">
@@ -129,6 +142,14 @@ export default async function LeadDetailPage({
           <div className="mt-1 flex gap-2">
             <StatusBadge status={lead.status} />
             <StageBadge status={lead.status} />
+            {isPartiallyComplete && (
+              <Badge
+                variant="outline"
+                className="border-[#f1c21b] bg-[#fcf4d6] text-[#8a5300]"
+              >
+                Partially Completed — no session yet
+              </Badge>
+            )}
             {aspirational?.is_aspirational && (
               <Badge
                 variant="outline"
