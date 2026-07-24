@@ -17,24 +17,28 @@ import { Button } from "@/components/ui/button";
 import {
   STAGE_LABELS,
   STAGE_ORDER,
-  stageForStatus,
+  isResolvedStatus,
   isLeadResolved,
   leadHasSessionAttempt,
   canCompleteDespiteRejection,
+  effectiveStage,
 } from "@/lib/types";
 import type { Lead, LeadRound, Team } from "@/lib/types";
 
 /** Same as leads-table.tsx's helper: the one round a lead's quick execute
  * button should target — round 1 if unresolved, else whichever later round
  * is next in line, so the button doesn't vanish once round 1 is done while a
- * later round is still pending. */
+ * later round is still pending. Round 1 counts as settled once it's either
+ * executed or resolved via its own status (e.g. Rejected) — otherwise a
+ * rejected lead would still show "Mark as executed" just because it never
+ * got an executed_date. */
 function findPendingRound(
   lead: Lead,
   roundsByLead: Map<string, LeadRound[]>,
 ): { kind: "lead" } | { kind: "round"; round: LeadRound } | null {
-  if (!lead.executed_date) return { kind: "lead" };
+  if (!lead.executed_date && !isResolvedStatus(lead.status)) return { kind: "lead" };
   const rounds = (roundsByLead.get(lead.id) ?? [])
-    .filter((r) => !r.executed_date && stageForStatus(r.status) !== "stalled")
+    .filter((r) => !r.executed_date && !isResolvedStatus(r.status))
     .sort((a, b) => a.sequence_no - b.sequence_no);
   return rounds.length > 0 ? { kind: "round", round: rounds[0] } : null;
 }
@@ -96,7 +100,7 @@ export function LeadsKanban({
     <div className="flex gap-4 overflow-x-auto pb-2 md:grid md:grid-cols-5 md:overflow-visible">
       {STAGE_ORDER.map((stage) => {
         const stageLeads = optimisticLeads.filter(
-          (l) => stageForStatus(l.status) === stage,
+          (l) => effectiveStage(l, roundsByLead.get(l.id) ?? []) === stage,
         );
         return (
           <div

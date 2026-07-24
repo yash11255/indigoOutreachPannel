@@ -165,7 +165,7 @@ export function groupRoundsByLead(rounds: LeadRound[]): Map<string, LeadRound[]>
 
 /** Already-resolved lead statuses — nothing left to execute, cancel, or complete. */
 export function isLeadResolved(lead: Pick<Lead, "status">): boolean {
-  return lead.status === "Activity Completed" || stageForStatus(lead.status) === "stalled";
+  return isResolvedStatus(lead.status);
 }
 
 /**
@@ -207,10 +207,10 @@ export function leadAllRoundsResolved(
   lead: Pick<Lead, "executed_date" | "status">,
   rounds: LeadRound[],
 ): boolean {
-  const round1Resolved = !!lead.executed_date || stageForStatus(lead.status) === "stalled";
+  const round1Resolved = !!lead.executed_date || isResolvedStatus(lead.status);
   return (
     round1Resolved &&
-    rounds.every((r) => !!r.executed_date || stageForStatus(r.status) === "stalled")
+    rounds.every((r) => !!r.executed_date || isResolvedStatus(r.status))
   );
 }
 
@@ -355,28 +355,120 @@ const STAGE_BY_STATUS: Record<string, LeadStage> = {
   "Activity Completed": "completed",
   Closed: "completed",
   "No Response": "stalled",
-  Rejected: "stalled",
+  Rejected: "completed",
 };
 
 export function stageForStatus(status: string): LeadStage {
   return STAGE_BY_STATUS[status] ?? "planned";
 }
 
+/** True once a round/lead's own status is a final outcome — a genuine
+ * completion (Activity Completed/Closed) or a rejection — as opposed to
+ * "No Response", which stays Inactive since it's not a definitive answer. */
+export function isResolvedStatus(status: string): boolean {
+  const stage = stageForStatus(status);
+  return stage === "completed" || stage === "stalled";
+}
+
+/**
+ * "planned" is labeled and ordered as a catch-all rather than a pipeline
+ * start: the create-lead form requires picking an Outreach Activity, so a
+ * lead made through the app today always lands directly in Outreach Sent or
+ * Awareness Session Scheduled. This stage only exists for legacy/imported
+ * records missing that field — hence "Incomplete / Missing Data" rather than
+ * "Planned", and last in STAGE_ORDER rather than first.
+ */
 export const STAGE_LABELS: Record<LeadStage, string> = {
-  planned: "Planned",
+  planned: "Incomplete / Missing Data",
   outreach_sent: "Outreach Sent",
-  scheduled: "Scheduled",
+  scheduled: "Awareness Session Scheduled",
   completed: "Completed",
   stalled: "Inactive",
 };
 
 export const STAGE_ORDER: LeadStage[] = [
-  "planned",
   "outreach_sent",
   "scheduled",
   "completed",
   "stalled",
+  "planned",
 ];
+
+/** Days of silence past a planned date before a still-open round counts as
+ * neglected for display purposes. */
+export const OVERDUE_GRACE_DAYS = 2;
+
+function daysPast(dateIso: string, todayIso: string): number {
+  const today = new Date(`${todayIso}T00:00:00`);
+  const date = new Date(`${dateIso}T00:00:00`);
+  return Math.round((today.getTime() - date.getTime()) / 86_400_000);
+}
+
+type EffectiveStageLead = Pick<
+  Lead,
+  "status" | "executed_date" | "planned_date" | "planned_activity" | "activity_undertaken"
+>;
+type EffectiveStageRound = Pick<
+  LeadRound,
+  "status" | "executed_date" | "planned_date" | "sequence_no" | "title" | "activity_undertaken"
+>;
+
+/**
+ * The stage actually shown to users — same as stageForStatus() with two
+ * adjustments, neither of which ever writes anything to the database:
+ *
+ * 1. What's actually pending drives the stage, not just the literal status
+ *    text (which often lags behind — someone logs a WhatsApp message or
+ *    books a session without ever touching the status dropdown). A lead
+ *    whose latest round's activity is a genuine awareness session displays
+ *    as Awareness Session Scheduled, even if the status still says "Planned"
+ *    or "Outreach Request sent." One whose latest activity is a real but
+ *    lower-touch outreach action (WhatsApp, email, a flyer) displays as
+ *    Outreach Sent. A lead with no activity chosen yet keeps the plain
+ *    Planned label.
+ * 2. A round that's still open (nothing executed, rejected, or marked No
+ *    Response) and more than OVERDUE_GRACE_DAYS past its planned date
+ *    displays as Inactive, to surface leads nobody has touched.
+ *
+ * Both are purely display computations: a lead reclassifies the instant
+ * it's actually updated, and there's no batch job that could ever mistakenly
+ * mutate real records (see the earlier close-overdue incident — this
+ * replaces that approach entirely rather than resuming it). Actual
+ * action-gating (isResolvedStatus, canCompleteDespiteRejection, the "Mark as
+ * executed" button) deliberately keeps using the real recorded status, not
+ * this — an overdue-but-untouched lead must stay actionable.
+ */
+export function effectiveStage(
+  lead: EffectiveStageLead,
+  rounds: EffectiveStageRound[],
+  todayIso: string = new Date().toISOString().slice(0, 10),
+): LeadStage {
+  let stage = stageForStatus(lead.status);
+  if (stage !== "planned" && stage !== "outreach_sent" && stage !== "scheduled") {
+    return stage;
+  }
+
+  const pendingRound = lead.executed_date
+    ? (rounds
+        .filter((r) => !r.executed_date && !isResolvedStatus(r.status))
+        .sort((a, b) => a.sequence_no - b.sequence_no)[0] ?? null)
+    : null;
+  const pendingActivity = lead.executed_date
+    ? (pendingRound?.activity_undertaken ?? pendingRound?.title ?? null)
+    : (lead.activity_undertaken ?? lead.planned_activity ?? null);
+  const pendingPlannedDate = lead.executed_date
+    ? (pendingRound?.planned_date ?? null)
+    : lead.planned_date;
+
+  if (pendingActivity) {
+    stage = hasAwarenessSession([pendingActivity]) ? "scheduled" : "outreach_sent";
+  }
+
+  if (pendingPlannedDate && daysPast(pendingPlannedDate, todayIso) > OVERDUE_GRACE_DAYS) {
+    return "stalled";
+  }
+  return stage;
+}
 
 /** The two canonical statuses that mean "this activity isn't happening" — same vocabulary the Edit form's Status picker already offers. */
 export const CANCEL_STATUSES = ["Rejected", "No Response"] as const;

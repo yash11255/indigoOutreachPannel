@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { stageForStatus, STAGE_LABELS, type LeadStage } from "@/lib/types";
+import { STAGE_LABELS, type LeadStage } from "@/lib/types";
 
 const STAGE_COLORS: Record<LeadStage, string> = {
   planned: "bg-[#e0e0e0] text-[#161616] border-[#c6c6c6]",
@@ -9,8 +9,7 @@ const STAGE_COLORS: Record<LeadStage, string> = {
   stalled: "bg-[#fff1f1] text-[#a2191f] border-[#ffd7d9]",
 };
 
-export function StageBadge({ status }: { status: string }) {
-  const stage = stageForStatus(status);
+export function StageBadge({ stage }: { stage: LeadStage }) {
   return (
     <Badge variant="outline" className={`${STAGE_COLORS[stage]} rounded-none`}>
       {STAGE_LABELS[stage]}

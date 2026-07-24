@@ -3,7 +3,13 @@ import { getLeads, getAllLeadRounds } from "@/lib/data/leads";
 import { getTeams, getStatuses, getRegionsStates, getDistrictsMaster } from "@/lib/data/lookups";
 import { DueBanner } from "@/components/due-banner";
 import { LeadsView } from "./leads-view";
-import { stageForStatus, groupRoundsByLead } from "@/lib/types";
+import {
+  stageForStatus,
+  groupRoundsByLead,
+  isResolvedStatus,
+  effectiveStage,
+  leadHasGenuineSession,
+} from "@/lib/types";
 import { hasAwarenessSession } from "@/lib/outreach-taxonomy";
 
 export default async function LeadsPage() {
@@ -27,13 +33,27 @@ export default async function LeadsPage() {
     getDistrictsMaster(),
   ]);
 
+  const roundsByLead = groupRoundsByLead(rounds);
+
   // Due = planned but not yet executed, planned_date already arrived — a
   // strict subset of `leads` (already fetched, already sorted by planned_date
   // ascending), so this is a plain filter rather than a second full DB round
-  // trip through getDueLeads().
+  // trip through getDueLeads(). Flagging which of these have only ever had
+  // outreach (never a genuine session) so the banner can push a stronger,
+  // more specific reminder for those — "update this: executed, rejected, or
+  // no response?" — instead of the generic due message.
   const today = new Date().toISOString().slice(0, 10);
   const dueLeads = leads.filter(
-    (l) => l.planned_date !== null && l.planned_date <= today && l.executed_date === null,
+    (l) =>
+      l.planned_date !== null &&
+      l.planned_date <= today &&
+      l.executed_date === null &&
+      !isResolvedStatus(l.status),
+  );
+  const outreachOnlyDueIds = new Set(
+    dueLeads
+      .filter((l) => !leadHasGenuineSession(l, roundsByLead.get(l.id) ?? []))
+      .map((l) => l.id),
   );
 
   const heading = isAdmin ? "All leads" : isTeamAdmin ? "Team leads" : "Your leads";
@@ -47,8 +67,9 @@ export default async function LeadsPage() {
   // leads with real effort already on them but no session yet), how many are
   // fully done, and of those done, how many actually have a genuine session
   // on record vs. were resolved some other way (e.g. cancelled).
-  const roundsByLead = groupRoundsByLead(rounds);
-  const plannedCount = leads.filter((l) => stageForStatus(l.status) === "planned").length;
+  const plannedCount = leads.filter(
+    (l) => effectiveStage(l, roundsByLead.get(l.id) ?? []) === "planned",
+  ).length;
   const completedLeads = leads.filter((l) => stageForStatus(l.status) === "completed");
   const completedWithSessionCount = completedLeads.filter((l) =>
     hasAwarenessSession([
@@ -65,7 +86,7 @@ export default async function LeadsPage() {
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-md border bg-neutral-50 px-3.5 py-2.5">
-          <div className="text-xs text-neutral-500">In Planned</div>
+          <div className="text-xs text-neutral-500">Incomplete / Missing Data</div>
           <div className="text-lg font-semibold tabular-nums">{plannedCount}</div>
         </div>
         <div className="rounded-md border bg-neutral-50 px-3.5 py-2.5">
@@ -80,7 +101,7 @@ export default async function LeadsPage() {
           </div>
         </div>
       </div>
-      <DueBanner leads={dueLeads} />
+      <DueBanner leads={dueLeads} outreachOnlyIds={outreachOnlyDueIds} />
       <LeadsView
         leads={leads}
         rounds={rounds}

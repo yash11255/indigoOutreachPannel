@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfileForAction, requireAdminForAction } from "@/lib/data/session";
-import { stageForStatus, type CancelInput } from "@/lib/types";
+import { isResolvedStatus, type CancelInput } from "@/lib/types";
 import { hasAwarenessSession } from "@/lib/outreach-taxonomy";
 
 export type LeadFormState = { error?: string; success?: boolean };
@@ -66,7 +66,7 @@ async function allRoundsDone(
     .select("executed_date, status")
     .eq("lead_id", leadId);
   return (data ?? []).every(
-    (r) => !!r.executed_date || stageForStatus(r.status) === "stalled",
+    (r) => !!r.executed_date || isResolvedStatus(r.status),
   );
 }
 

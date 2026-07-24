@@ -24,7 +24,7 @@ import { Label } from "@/components/ui/label";
 import {
   STAGE_LABELS,
   STAGE_ORDER,
-  stageForStatus,
+  effectiveStage,
   buildMemberBreakdown,
   groupRoundsByLead,
   totalGirlsReached,
@@ -48,7 +48,7 @@ export default async function AdminPage() {
 
   const byStage = STAGE_ORDER.map((stage) => ({
     stage,
-    count: leads.filter((l) => stageForStatus(l.status) === stage).length,
+    count: leads.filter((l) => effectiveStage(l, roundsByLead.get(l.id) ?? []) === stage).length,
   }));
 
   const byTeam = teams.map((team) => {
@@ -57,7 +57,7 @@ export default async function AdminPage() {
       team,
       total: teamLeads.length,
       completed: teamLeads.filter(
-        (l) => stageForStatus(l.status) === "completed",
+        (l) => effectiveStage(l, roundsByLead.get(l.id) ?? []) === "completed",
       ).length,
       plannedGirls: sum(teamLeads.map((l) => totalPlannedGirlsReach(l, roundsByLead))),
       girlsReached: sum(teamLeads.map((l) => totalGirlsReached(l, roundsByLead))),
@@ -77,7 +77,7 @@ export default async function AdminPage() {
     .map((row) => {
       const teamLeads = leads.filter((l) => l.team_id === row.team.id);
       const stages = emptyStages();
-      for (const l of teamLeads) stages[stageForStatus(l.status)] += 1;
+      for (const l of teamLeads) stages[effectiveStage(l, roundsByLead.get(l.id) ?? [])] += 1;
       const sortedLeads = teamLeads
         .slice()
         .sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -103,7 +103,7 @@ export default async function AdminPage() {
           stages: emptyStages(),
         };
         entry.total += 1;
-        const stage = stageForStatus(l.status);
+        const stage = effectiveStage(l, roundsByLead.get(l.id) ?? []);
         entry.stages[stage] += 1;
         if (stage === "completed") entry.completed += 1;
         subTeamMap.set(key, entry);
@@ -141,7 +141,7 @@ export default async function AdminPage() {
   const regionActivity: RegionBreakdownRow[] = Array.from(byRegionRaw.entries())
     .map(([region, regionLeads]) => {
       const stages = emptyStages();
-      for (const l of regionLeads) stages[stageForStatus(l.status)] += 1;
+      for (const l of regionLeads) stages[effectiveStage(l, roundsByLead.get(l.id) ?? [])] += 1;
       const completed = stages.completed;
 
       const stateMap = new Map<
@@ -153,7 +153,7 @@ export default async function AdminPage() {
         if (!key) continue;
         const entry = stateMap.get(key) ?? { total: 0, completed: 0, stages: emptyStages() };
         entry.total += 1;
-        const stage = stageForStatus(l.status);
+        const stage = effectiveStage(l, roundsByLead.get(l.id) ?? []);
         entry.stages[stage] += 1;
         if (stage === "completed") entry.completed += 1;
         stateMap.set(key, entry);
@@ -198,7 +198,7 @@ export default async function AdminPage() {
   const stateActivity: StateBreakdownRow[] = Array.from(byStateRaw.entries())
     .map(([state, stateLeads]) => {
       const stages = emptyStages();
-      for (const l of stateLeads) stages[stageForStatus(l.status)] += 1;
+      for (const l of stateLeads) stages[effectiveStage(l, roundsByLead.get(l.id) ?? [])] += 1;
 
       const sortedLeads = stateLeads
         .slice()
@@ -232,7 +232,7 @@ export default async function AdminPage() {
     });
     const entry = dayMap.get(day) ?? { total: 0, completed: 0 };
     entry.total += 1;
-    if (stageForStatus(l.status) === "completed") entry.completed += 1;
+    if (effectiveStage(l, roundsByLead.get(l.id) ?? []) === "completed") entry.completed += 1;
     dayMap.set(day, entry);
   }
   const byDay = Array.from(dayMap.entries())
@@ -504,18 +504,30 @@ export default async function AdminPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-6">
+        <Card className="border-[#0f62fe]">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-normal text-neutral-500">
+              Total leads
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-semibold text-[#0043ce]">
+            {leads.length}
+          </CardContent>
+        </Card>
         {byStage.map(({ stage, count }) => (
-          <Card key={stage}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-normal text-neutral-500">
-                {STAGE_LABELS[stage]}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-2xl font-semibold">
-              {count}
-            </CardContent>
-          </Card>
+          <Link key={stage} href={`/admin/segment?stages=${stage}`}>
+            <Card className="transition-colors hover:border-[#0f62fe]">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-normal text-neutral-500">
+                  {STAGE_LABELS[stage]}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-2xl font-semibold">
+                {count}
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 

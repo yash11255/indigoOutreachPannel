@@ -1,6 +1,6 @@
 "use client";
 
-import { stageForStatus, type TimelineStep } from "@/lib/types";
+import { CANCEL_STATUSES, type TimelineStep } from "@/lib/types";
 
 const DOT_COLOR = {
   done: "bg-[#0f62fe] border-[#0f62fe]",
@@ -26,8 +26,9 @@ export function LeadTimeline({ steps }: { steps: TimelineStep[] }) {
         {steps.map((step, i) => {
           const isDone = !!step.executedDate;
           const prevDone = i === 0 || !!steps[i - 1].executedDate;
-          const stage = stageForStatus(step.status);
-          const isStalled = stage === "stalled";
+          const isStalled = (CANCEL_STATUSES as readonly string[]).includes(
+            step.status,
+          );
 
           return (
             <div key={step.sequenceNo} className="flex items-start">

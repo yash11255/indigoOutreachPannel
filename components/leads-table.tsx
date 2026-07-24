@@ -19,10 +19,11 @@ import { CompleteDespiteRejectionDialog } from "@/components/complete-despite-re
 import { markLeadExecuted, markRoundExecuted, completeLeadDespiteRejection } from "@/lib/actions/leads";
 import { Button } from "@/components/ui/button";
 import {
-  stageForStatus,
+  isResolvedStatus,
   isLeadResolved,
   leadHasSessionAttempt,
   canCompleteDespiteRejection,
+  effectiveStage,
   type Lead,
   type LeadRound,
   type Team,
@@ -31,14 +32,17 @@ import {
 /** The one round a lead's quick "Mark as executed" button in a list view
  * should target: round 1 (the lead itself) if it's still unresolved,
  * otherwise whichever later round is next in line — so the button doesn't
- * just vanish once round 1 is done while a later round is still pending. */
+ * just vanish once round 1 is done while a later round is still pending.
+ * Round 1 counts as settled once it's either executed or resolved via its
+ * own status (e.g. Rejected) — otherwise a rejected lead would still show
+ * "Mark as executed" just because it never got an executed_date. */
 function findPendingRound(
   lead: Lead,
   roundsByLead: Map<string, LeadRound[]>,
 ): { kind: "lead" } | { kind: "round"; round: LeadRound } | null {
-  if (!lead.executed_date) return { kind: "lead" };
+  if (!lead.executed_date && !isResolvedStatus(lead.status)) return { kind: "lead" };
   const rounds = (roundsByLead.get(lead.id) ?? [])
-    .filter((r) => !r.executed_date && stageForStatus(r.status) !== "stalled")
+    .filter((r) => !r.executed_date && !isResolvedStatus(r.status))
     .sort((a, b) => a.sequence_no - b.sequence_no);
   return rounds.length > 0 ? { kind: "round", round: rounds[0] } : null;
 }
@@ -228,7 +232,7 @@ export function LeadsTable({
                         <StatusBadge status={lead.status} />
                       </TableCell>
                       <TableCell>
-                        <StageBadge status={lead.status} />
+                        <StageBadge stage={effectiveStage(lead, leadRounds)} />
                       </TableCell>
                       {canEdit && (
                         <TableCell className="text-right">

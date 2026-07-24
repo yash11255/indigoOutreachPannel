@@ -9,11 +9,27 @@ function daysOverdue(plannedDate: string): number {
   return Math.round((today.getTime() - planned.getTime()) / 86_400_000);
 }
 
-/** Banner of leads whose planned date has arrived but haven't been executed yet. */
-export function DueBanner({ leads }: { leads: Lead[] }) {
+/**
+ * Banner of leads whose planned date has arrived but haven't been executed
+ * yet. `outreachOnlyIds` marks which of these have only ever had outreach —
+ * a WhatsApp message, an email — never a genuine session: those get a
+ * pointed reminder to actually resolve the lead (execute it, or mark it
+ * Rejected/No Response) rather than the generic "days overdue" note, and
+ * sort to the top since they're the ones most likely to just be forgotten.
+ */
+export function DueBanner({
+  leads,
+  outreachOnlyIds = new Set(),
+}: {
+  leads: Lead[];
+  outreachOnlyIds?: Set<string>;
+}) {
   if (leads.length === 0) return null;
 
   const overdue = leads.filter((l) => daysOverdue(l.planned_date!) > 0);
+  const sorted = leads
+    .slice()
+    .sort((a, b) => Number(outreachOnlyIds.has(b.id)) - Number(outreachOnlyIds.has(a.id)));
 
   return (
     <Card className="border-[#f1c21b] bg-[#fcf4d6]">
@@ -23,19 +39,22 @@ export function DueBanner({ leads }: { leads: Lead[] }) {
           {overdue.length > 0 ? ` (${overdue.length} overdue)` : ""}
         </h2>
         <div className="flex flex-col gap-1">
-          {leads.slice(0, 6).map((lead) => {
+          {sorted.slice(0, 6).map((lead) => {
             const overdueBy = daysOverdue(lead.planned_date!);
+            const needsStatusUpdate = overdueBy > 0 && outreachOnlyIds.has(lead.id);
             return (
               <Link
                 key={lead.id}
                 href={`/leads/${lead.id}`}
-                className="flex items-center justify-between text-sm text-[#161616] hover:underline"
+                className="flex items-center justify-between gap-3 text-sm text-[#161616] hover:underline"
               >
                 <span>{lead.institution_name}</span>
-                <span className="text-xs text-[#8a5300]">
-                  {overdueBy > 0
-                    ? `${overdueBy} day${overdueBy === 1 ? "" : "s"} overdue`
-                    : "due today"}
+                <span className="shrink-0 text-right text-xs text-[#8a5300]">
+                  {needsStatusUpdate
+                    ? `Only outreach sent, no update — executed, rejected, or no response?`
+                    : overdueBy > 0
+                      ? `${overdueBy} day${overdueBy === 1 ? "" : "s"} overdue`
+                      : "due today"}
                 </span>
               </Link>
             );

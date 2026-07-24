@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { StageBadge } from "@/components/stage-badge";
-import type { MemberInstitutionsGroup, Team } from "@/lib/types";
+import { stageForStatus, type MemberInstitutionsGroup, type Team } from "@/lib/types";
 
 /** Team-member rows that expand in place to show which institutions each person is working — click a name to open/close it. */
 export function MemberInstitutionsList({
@@ -62,7 +62,7 @@ export function MemberInstitutionsList({
                     <span className="flex items-center gap-2 text-neutral-500">
                       {showTeamColumn && <span>{teamName(l.team_id)}</span>}
                       {l.state && <span>{l.state}</span>}
-                      <StageBadge status={l.status} />
+                      <StageBadge stage={stageForStatus(l.status)} />
                     </span>
                   </div>
                 ))}

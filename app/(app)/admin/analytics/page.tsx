@@ -9,6 +9,8 @@ import {
   STAGE_LABELS,
   STAGE_ORDER,
   stageForStatus,
+  isResolvedStatus,
+  effectiveStage,
   groupRoundsByLead,
   totalGirlsReached,
   totalPlannedGirlsReach,
@@ -39,7 +41,7 @@ export default async function AdminAnalyticsPage() {
 
   const totalLeads = leads.length;
   const stageCounts = emptyStages();
-  for (const l of leads) stageCounts[stageForStatus(l.status)] += 1;
+  for (const l of leads) stageCounts[effectiveStage(l, roundsByLead.get(l.id) ?? [])] += 1;
   const planned = stageCounts.planned;
   const completed = stageCounts.completed;
   const inProgress = stageCounts.outreach_sent + stageCounts.scheduled;
@@ -129,7 +131,7 @@ export default async function AdminAnalyticsPage() {
       const teamLeads = leads.filter((l) => l.team_id === team.id);
       if (teamLeads.length === 0) return null;
       const stages = emptyStages();
-      for (const l of teamLeads) stages[stageForStatus(l.status)] += 1;
+      for (const l of teamLeads) stages[effectiveStage(l, roundsByLead.get(l.id) ?? [])] += 1;
       return { team: team.name, ...stages, total: teamLeads.length };
     })
     .filter((row): row is NonNullable<typeof row> => row !== null)
@@ -265,7 +267,7 @@ export default async function AdminAnalyticsPage() {
   const todayIso = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   const NEXT_DAYS = 15;
   const stillDue = leads.filter(
-    (l) => l.planned_date !== null && l.executed_date === null,
+    (l) => l.planned_date !== null && l.executed_date === null && !isResolvedStatus(l.status),
   );
   const dueTillNow = stillDue.filter((l) => l.planned_date! < todayIso).length;
 

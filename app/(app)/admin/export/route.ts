@@ -7,13 +7,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   STAGE_ORDER,
   STAGE_LABELS,
-  stageForStatus,
+  effectiveStage,
   groupRoundsByLead,
   totalGirlsReached,
   totalStudentsReached,
   totalPlannedGirlsReach,
   type LeadStage,
   type Lead,
+  type LeadRound,
 } from "@/lib/types";
 
 /**
@@ -69,7 +70,7 @@ function sum(nums: (number | null)[]) {
   return nums.reduce<number>((acc, n) => acc + (n ?? 0), 0);
 }
 
-function stageCounts(rows: Lead[]) {
+function stageCounts(rows: Lead[], roundsByLead: Map<string, LeadRound[]>) {
   const stages: Record<LeadStage, number> = {
     planned: 0,
     outreach_sent: 0,
@@ -77,7 +78,7 @@ function stageCounts(rows: Lead[]) {
     completed: 0,
     stalled: 0,
   };
-  for (const l of rows) stages[stageForStatus(l.status)] += 1;
+  for (const l of rows) stages[effectiveStage(l, roundsByLead.get(l.id) ?? [])] += 1;
   return stages;
 }
 
@@ -94,15 +95,16 @@ function addGroupedSummarySheet(
   columnHeader: string,
   leads: Lead[],
   keyOf: (l: Lead) => string,
+  roundsByLead: Map<string, LeadRound[]>,
   extraEmptyGroups: string[] = [],
 ) {
   const sheet = workbook.addWorksheet(sheetName);
   sheet.columns = [
     { header: columnHeader, key: "group", width: 24 },
     { header: "Total leads", key: "total", width: 12 },
-    { header: "Planned", key: "planned", width: 10 },
+    { header: "Incomplete / Missing Data", key: "planned", width: 22 },
     { header: "Outreach sent", key: "sent", width: 14 },
-    { header: "Scheduled", key: "scheduled", width: 12 },
+    { header: "Awareness Session Scheduled", key: "scheduled", width: 26 },
     { header: "Completed", key: "completed", width: 12 },
     { header: "Inactive", key: "stalled", width: 10 },
     { header: "Planned girls reach", key: "plannedGirls", width: 18 },
@@ -127,7 +129,7 @@ function addGroupedSummarySheet(
     return b[1].length - a[1].length;
   });
   for (const [group, rows] of sorted) {
-    const stages = stageCounts(rows);
+    const stages = stageCounts(rows, roundsByLead);
     sheet.addRow({
       group,
       total: rows.length,
@@ -180,6 +182,7 @@ function dimensionValue(
   dim: DimensionKey,
   teamName: (id: string) => string,
   memberEmailById: Map<string, string>,
+  roundsByLead: Map<string, LeadRound[]>,
 ): string {
   switch (dim) {
     case "date":
@@ -205,7 +208,7 @@ function dimensionValue(
     case "institution":
       return l.institution_name || "Unspecified";
     case "stage":
-      return STAGE_LABELS[stageForStatus(l.status)];
+      return STAGE_LABELS[effectiveStage(l, roundsByLead.get(l.id) ?? [])];
   }
 }
 
@@ -221,6 +224,7 @@ function addCustomCombinationSheet(
   leads: Lead[],
   teamName: (id: string) => string,
   memberEmailById: Map<string, string>,
+  roundsByLead: Map<string, LeadRound[]>,
 ) {
   const sheet = workbook.addWorksheet(
     `Custom (${dims.map((d) => DIMENSION_LABELS[d]).join(" x ")})`.slice(0, 31),
@@ -228,9 +232,9 @@ function addCustomCombinationSheet(
   sheet.columns = [
     ...dims.map((d, i) => ({ header: DIMENSION_LABELS[d], key: `dim${i}`, width: 22 })),
     { header: "Total leads", key: "total", width: 12 },
-    { header: "Planned", key: "planned", width: 10 },
+    { header: "Incomplete / Missing Data", key: "planned", width: 22 },
     { header: "Outreach sent", key: "sent", width: 14 },
-    { header: "Scheduled", key: "scheduled", width: 12 },
+    { header: "Awareness Session Scheduled", key: "scheduled", width: 26 },
     { header: "Completed", key: "completed", width: 12 },
     { header: "Inactive", key: "stalled", width: 10 },
     { header: "Planned girls reach", key: "plannedGirls", width: 18 },
@@ -239,7 +243,7 @@ function addCustomCombinationSheet(
 
   const groups = new Map<string, { values: string[]; rows: Lead[] }>();
   for (const l of leads) {
-    const values = dims.map((d) => dimensionValue(l, d, teamName, memberEmailById));
+    const values = dims.map((d) => dimensionValue(l, d, teamName, memberEmailById, roundsByLead));
     const key = values.join("");
     const entry = groups.get(key) ?? { values, rows: [] };
     entry.rows.push(l);
@@ -258,7 +262,7 @@ function addCustomCombinationSheet(
         b.rows.length - a.rows.length,
   );
   for (const { values, rows } of sorted) {
-    const stages = stageCounts(rows);
+    const stages = stageCounts(rows, roundsByLead);
     const rowData: Record<string, string | number> = {};
     values.forEach((v, i) => (rowData[`dim${i}`] = v));
     rowData.total = rows.length;
@@ -537,6 +541,7 @@ async function masterSheetReport(restrictToTeamId: string | null): Promise<Respo
     getAllProfiles(),
   ]);
   const allLeads = withRoundTotals(allLeadsRaw, rounds);
+  const roundsByLead = groupRoundsByLead(rounds);
   const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? "—";
   const memberEmailById = new Map(profiles.map((p) => [p.id, p.email]));
   const leads = restrictToTeamId
@@ -547,17 +552,18 @@ async function masterSheetReport(restrictToTeamId: string | null): Promise<Respo
   workbook.creator = "Indigo GWF Outreach Dashboard";
   workbook.created = new Date();
 
-  addGroupedSummarySheet(workbook, "Region-wise leads", "Region", leads, (l) => l.region ?? "");
-  addGroupedSummarySheet(workbook, "State-wise leads", "State", leads, (l) => l.state ?? "");
+  addGroupedSummarySheet(workbook, "Region-wise leads", "Region", leads, (l) => l.region ?? "", roundsByLead);
+  addGroupedSummarySheet(workbook, "State-wise leads", "State", leads, (l) => l.state ?? "", roundsByLead);
   addGroupedSummarySheet(
     workbook,
     "District-wise leads",
     "District / City",
     leads,
     (l) => l.district_city ?? "",
+    roundsByLead,
   );
   if (!restrictToTeamId) {
-    addGroupedSummarySheet(workbook, "Team-wise leads", "Team", leads, (l) => teamName(l.team_id));
+    addGroupedSummarySheet(workbook, "Team-wise leads", "Team", leads, (l) => teamName(l.team_id), roundsByLead);
   }
   addGroupedSummarySheet(
     workbook,
@@ -565,6 +571,7 @@ async function masterSheetReport(restrictToTeamId: string | null): Promise<Respo
     "Sub-team",
     leads,
     (l) => l.sub_team ?? "(no sub-team)",
+    roundsByLead,
   );
 
   const scopedProfiles = profiles.filter(
@@ -612,6 +619,7 @@ export async function GET(request: Request) {
     !isFullAdmin && profile.sub_team ? profile.sub_team : searchParams.get("subTeam");
   const filterState = searchParams.get("state");
   const filterDistrict = searchParams.get("district");
+  const filterMember = searchParams.get("member");
   const filterCreatedOn = parseDateParam(searchParams.get("createdOn"));
   const filterFrom = parseDateParam(searchParams.get("from"));
   const filterTo = parseDateParam(searchParams.get("to"));
@@ -644,6 +652,7 @@ export async function GET(request: Request) {
     getAllProfiles(),
   ]);
   const allLeads = withRoundTotals(allLeadsRaw, rounds);
+  const roundsByLead = groupRoundsByLead(rounds);
   const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? "—";
   const memberEmailById = new Map(profiles.map((p) => [p.id, p.email]));
 
@@ -654,8 +663,10 @@ export async function GET(request: Request) {
       (!filterSubTeam || l.sub_team === filterSubTeam) &&
       (!filterState || l.state === filterState) &&
       (!filterDistrict || l.district_city === filterDistrict) &&
+      (!filterMember || l.responsible_member?.trim() === filterMember) &&
       (!filterCreatedOn || createdOnDay(l.created_at) === filterCreatedOn) &&
-      (!filterStages?.length || filterStages.includes(stageForStatus(l.status))) &&
+      (!filterStages?.length ||
+        filterStages.includes(effectiveStage(l, roundsByLead.get(l.id) ?? []))) &&
       withinDateRange(l, filterFrom, filterTo),
   );
 
@@ -671,6 +682,7 @@ export async function GET(request: Request) {
       filterDistrict,
       filterTeamId && teamName(filterTeamId),
       filterSubTeam,
+      filterMember,
       filterCreatedOn && `Created ${filterCreatedOn}`,
       filterStages?.length &&
         `Stage: ${filterStages.map((s) => STAGE_LABELS[s]).join(" + ")}`,
@@ -718,8 +730,13 @@ export async function GET(request: Request) {
   // down to a single value on that same dimension — a "by team" sheet with
   // one row isn't useful once you've already picked a team.
   if (includeTeam && !filterTeamId) {
-    addGroupedSummarySheet(workbook, "Summary by team", "Team", leads, (l) =>
-      teamName(l.team_id),
+    addGroupedSummarySheet(
+      workbook,
+      "Summary by team",
+      "Team",
+      leads,
+      (l) => teamName(l.team_id),
+      roundsByLead,
     );
   }
   if (!filterRegion) {
@@ -729,6 +746,7 @@ export async function GET(request: Request) {
       "Region",
       leads,
       (l) => l.region ?? "",
+      roundsByLead,
     );
   }
   if (includeState && !filterState) {
@@ -738,6 +756,7 @@ export async function GET(request: Request) {
       "State",
       leads,
       (l) => l.state ?? "",
+      roundsByLead,
     );
   }
   if (includeDistrict && !filterDistrict) {
@@ -747,6 +766,7 @@ export async function GET(request: Request) {
       "District / City",
       leads,
       (l) => l.district_city ?? "",
+      roundsByLead,
     );
   }
   // "Who created these" is always worth its own sheet once a single day is
@@ -767,13 +787,14 @@ export async function GET(request: Request) {
       "Responsible member",
       leads,
       (l) => l.responsible_member ?? "",
+      roundsByLead,
       zeroLeadRoster,
     );
   }
 
   // ── Custom sheet: any combination of dimensions the user picked ─────
   if (customGroupBy.length > 0) {
-    addCustomCombinationSheet(workbook, customGroupBy, leads, teamName, memberEmailById);
+    addCustomCombinationSheet(workbook, customGroupBy, leads, teamName, memberEmailById, roundsByLead);
   }
 
   // ── By stage (matches the dashboard's stat cards) ───────────────────
@@ -785,7 +806,7 @@ export async function GET(request: Request) {
   for (const stage of STAGE_ORDER) {
     stageSheet.addRow({
       stage: STAGE_LABELS[stage],
-      total: leads.filter((l) => stageForStatus(l.status) === stage).length,
+      total: leads.filter((l) => effectiveStage(l, roundsByLead.get(l.id) ?? []) === stage).length,
     });
   }
   styleSheet(stageSheet);

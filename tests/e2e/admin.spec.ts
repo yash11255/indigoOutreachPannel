@@ -5,7 +5,13 @@ test.describe("admin", () => {
     await page.goto("/admin");
     await expect(page.getByRole("heading", { name: "Admin dashboard" })).toBeVisible();
 
-    for (const stage of ["Planned", "Outreach Sent", "Scheduled", "Completed", "Stalled"]) {
+    for (const stage of [
+      "Outreach Sent",
+      "Awareness Session Scheduled",
+      "Completed",
+      "Inactive",
+      "Incomplete / Missing Data",
+    ]) {
       await expect(page.getByText(stage, { exact: true }).first()).toBeVisible();
     }
 

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireAdminOrTeamAdmin } from "@/lib/data/session";
 import { getLeads, getAllLeadRounds } from "@/lib/data/leads";
 import { getTeams } from "@/lib/data/lookups";
+import { getAllProfiles } from "@/lib/data/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -20,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   stageForStatus,
+  effectiveStage,
   STAGE_ORDER,
   STAGE_LABELS,
   canEditLeads,
@@ -41,6 +43,7 @@ function segmentHref(params: {
   subTeam?: string;
   state?: string;
   district?: string;
+  member?: string;
   date?: string;
   stages?: string;
 }) {
@@ -50,6 +53,7 @@ function segmentHref(params: {
   if (params.subTeam) sp.set("subTeam", params.subTeam);
   if (params.state) sp.set("state", params.state);
   if (params.district) sp.set("district", params.district);
+  if (params.member) sp.set("member", params.member);
   if (params.date) sp.set("date", params.date);
   if (params.stages) sp.set("stages", params.stages);
   return `/admin/segment?${sp.toString()}`;
@@ -119,13 +123,14 @@ export default async function AdminSegmentPage({
     subTeam?: string;
     state?: string;
     district?: string;
+    member?: string;
     date?: string;
     stages?: string;
   }>;
 }) {
   const profile = await requireAdminOrTeamAdmin();
   const isFullAdmin = profile.role === "admin";
-  const { state, district, date, stages: stagesParam } = await searchParams;
+  const { state, district, member, date, stages: stagesParam } = await searchParams;
   let { region, team: teamId, subTeam } = await searchParams;
   const stageFilter = stagesParam
     ? (stagesParam.split(",").filter(Boolean) as LeadStage[])
@@ -143,13 +148,14 @@ export default async function AdminSegmentPage({
     teamId = profile.team_id ?? undefined;
     if (profile.sub_team) subTeam = profile.sub_team;
   }
-  if (!region && !teamId && !subTeam && !state && !district && !date && !stageFilter)
+  if (!region && !teamId && !subTeam && !state && !district && !member && !date && !stageFilter)
     notFound();
 
-  const [allLeads, rounds, teams] = await Promise.all([
+  const [allLeads, rounds, teams, profiles] = await Promise.all([
     getLeads(),
     getAllLeadRounds(),
     getTeams(),
+    getAllProfiles(),
   ]);
   const roundsByLead = groupRoundsByLead(rounds);
   const team = teamId ? teams.find((t) => t.id === teamId) : undefined;
@@ -162,9 +168,23 @@ export default async function AdminSegmentPage({
       (!subTeam || l.sub_team === subTeam) &&
       (!state || l.state === state) &&
       (!district || l.district_city === district) &&
+      (!member || l.responsible_member?.trim() === member) &&
       (!date || createdOnDay(l.created_at) === date) &&
-      (!stageFilter || stageFilter.includes(stageForStatus(l.status))),
+      (!stageFilter ||
+        stageFilter.includes(effectiveStage(l, roundsByLead.get(l.id) ?? []))),
   );
+
+  // The member drilldown's own "profile" header — best-effort match on name
+  // since responsible_member is free text, not a foreign key. Falls back to
+  // just the name if nobody's profile matches (e.g. a departed team member).
+  const memberProfile = member
+    ? profiles.find((p) => (p.full_name || p.email).trim() === member)
+    : undefined;
+  const memberTeamNames = member
+    ? Array.from(new Set(leads.map((l) => l.team_id)))
+        .map((id) => teams.find((t) => t.id === id)?.name ?? "—")
+        .join(", ")
+    : "";
 
   const titleParts = [
     region,
@@ -172,6 +192,7 @@ export default async function AdminSegmentPage({
     district,
     team?.name,
     subTeam,
+    member,
     date && `Created ${formatDay(date)}`,
     stageFilter && stageFilter.map((s) => STAGE_LABELS[s]).join(" + "),
   ].filter(Boolean);
@@ -182,7 +203,7 @@ export default async function AdminSegmentPage({
 
   const stages = STAGE_ORDER.map((stage) => ({
     stage,
-    count: leads.filter((l) => stageForStatus(l.status) === stage).length,
+    count: leads.filter((l) => effectiveStage(l, roundsByLead.get(l.id) ?? []) === stage).length,
   }));
 
   // Skip a breakdown once already filtered down to a single value on that
@@ -191,6 +212,7 @@ export default async function AdminSegmentPage({
   const byState = !state ? groupCount(leads, (l) => l.state) : [];
   const byDistrict = !district ? groupCount(leads, (l) => l.district_city) : [];
   const byTeam = !teamId ? groupByTeam(leads, teams) : [];
+  const byMemberBreakdown = !member ? buildMemberBreakdown(leads, teams) : [];
   const byMember = buildMemberInstitutions(leads);
 
   return (
@@ -209,6 +231,7 @@ export default async function AdminSegmentPage({
           {subTeam && <input type="hidden" name="subTeam" value={subTeam} />}
           {state && <input type="hidden" name="state" value={state} />}
           {district && <input type="hidden" name="district" value={district} />}
+          {member && <input type="hidden" name="member" value={member} />}
           {date && <input type="hidden" name="createdOn" value={date} />}
           <div className="flex flex-col gap-1">
             <label htmlFor="export-from" className="text-xs text-neutral-500">
@@ -258,18 +281,36 @@ export default async function AdminSegmentPage({
         </form>
       </div>
 
+      {member && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{member}</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-1 text-sm text-neutral-600">
+            <div>Email: {memberProfile?.email ?? "—"}</div>
+            <div>Team(s): {memberTeamNames || "—"}</div>
+            {memberProfile && <div>Role: {memberProfile.role}</div>}
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
         {stages.map(({ stage, count }) => (
-          <Card key={stage}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-normal text-neutral-500">
-                {STAGE_LABELS[stage]}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-2xl font-semibold">
-              {count}
-            </CardContent>
-          </Card>
+          <Link
+            key={stage}
+            href={segmentHref({ region, team: teamId, subTeam, state, district, member, stages: stage })}
+          >
+            <Card className="transition-colors hover:border-[#0f62fe]">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-normal text-neutral-500">
+                  {STAGE_LABELS[stage]}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-2xl font-semibold">
+                {count}
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 
@@ -290,7 +331,10 @@ export default async function AdminSegmentPage({
         </Card>
       )}
 
-      {(byTeam.length > 0 || byState.length > 0 || byDistrict.length > 0) && (
+      {(byTeam.length > 0 ||
+        byState.length > 0 ||
+        byDistrict.length > 0 ||
+        byMemberBreakdown.length > 0) && (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {byTeam.length > 0 && (
             <Card>
@@ -314,7 +358,14 @@ export default async function AdminSegmentPage({
                             row.name
                           ) : (
                             <Link
-                              href={segmentHref({ region, team: row.id, state, district, stages: stagesParam })}
+                              href={segmentHref({
+                                region,
+                                team: row.id,
+                                state,
+                                district,
+                                member,
+                                stages: stagesParam,
+                              })}
                               className="hover:underline"
                             >
                               {row.name}
@@ -353,7 +404,14 @@ export default async function AdminSegmentPage({
                             row.name
                           ) : (
                             <Link
-                              href={segmentHref({ region, team: teamId, subTeam, state: row.name, stages: stagesParam })}
+                              href={segmentHref({
+                                region,
+                                team: teamId,
+                                subTeam,
+                                state: row.name,
+                                member,
+                                stages: stagesParam,
+                              })}
                               className="hover:underline"
                             >
                               {row.name}
@@ -398,6 +456,7 @@ export default async function AdminSegmentPage({
                                 subTeam,
                                 state,
                                 district: row.name,
+                                member,
                                 stages: stagesParam,
                               })}
                               className="hover:underline"
@@ -407,6 +466,60 @@ export default async function AdminSegmentPage({
                           )}
                         </TableCell>
                         <TableCell>{row.total}</TableCell>
+                        <TableCell>{row.completed}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {byMemberBreakdown.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>By team member</CardTitle>
+                <p className="text-xs text-neutral-500">
+                  Who&apos;s responsible for these leads — click a name for their own breakdown.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Member</TableHead>
+                      <TableHead>Total leads</TableHead>
+                      <TableHead>Planned</TableHead>
+                      <TableHead>In progress</TableHead>
+                      <TableHead>Completed</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {byMemberBreakdown.map((row) => (
+                      <TableRow key={row.member}>
+                        <TableCell className="font-medium">
+                          {row.member === "Unassigned" ? (
+                            row.member
+                          ) : (
+                            <Link
+                              href={segmentHref({
+                                region,
+                                team: teamId,
+                                subTeam,
+                                state,
+                                district,
+                                member: row.member,
+                                stages: stagesParam,
+                              })}
+                              className="hover:underline"
+                            >
+                              {row.member}
+                            </Link>
+                          )}
+                        </TableCell>
+                        <TableCell>{row.total}</TableCell>
+                        <TableCell>{row.planned}</TableCell>
+                        <TableCell>{row.inProgress}</TableCell>
                         <TableCell>{row.completed}</TableCell>
                       </TableRow>
                     ))}

@@ -444,7 +444,7 @@ export function IndiaMap({
                         <StatusBadge status={lead.status} />
                       </TableCell>
                       <TableCell>
-                        <StageBadge status={lead.status} />
+                        <StageBadge stage={stageForStatus(lead.status)} />
                       </TableCell>
                     </TableRow>
                   ))}

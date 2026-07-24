@@ -32,6 +32,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   buildLeadTimeline,
   stageForStatus,
+  isResolvedStatus,
+  effectiveStage,
   canEditLeads,
   isLeadResolved,
   leadHasGenuineSession,
@@ -108,10 +110,10 @@ export default async function LeadDetailPage({
   // The step currently in progress: no executed date yet, and not already
   // cancelled — updates can only be logged against a step still genuinely open.
   const activeStep = timeline.find(
-    (s) => !s.executedDate && stageForStatus(s.status) !== "stalled",
+    (s) => !s.executedDate && !isResolvedStatus(s.status),
   );
   const lead1Resolved =
-    !!lead.executed_date || stageForStatus(lead.status) === "stalled";
+    !!lead.executed_date || isResolvedStatus(lead.status);
   const hasContactDetails = !!(
     lead.contact_person && (lead.mobile_no || lead.email_id)
   );
@@ -141,7 +143,7 @@ export default async function LeadDetailPage({
           <h1 className="text-xl font-semibold">{lead.institution_name}</h1>
           <div className="mt-1 flex gap-2">
             <StatusBadge status={lead.status} />
-            <StageBadge status={lead.status} />
+            <StageBadge stage={effectiveStage(lead, rounds)} />
             {isPartiallyComplete && (
               <Badge
                 variant="outline"
@@ -346,7 +348,7 @@ export default async function LeadDetailPage({
 
       {rounds.map((round) => {
         const roundResolved =
-          !!round.executed_date || stageForStatus(round.status) === "stalled";
+          !!round.executed_date || isResolvedStatus(round.status);
         return (
           <Card key={round.id}>
             <CardContent className="flex flex-col gap-4">
