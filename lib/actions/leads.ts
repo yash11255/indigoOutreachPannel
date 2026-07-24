@@ -389,6 +389,73 @@ export async function cancelLead(leadId: string, input: CancelInput) {
 }
 
 /**
+ * The top-level "drop this lead" action — a single button for dropping a
+ * lead entirely, whatever stage it's at, as long as no genuine session has
+ * happened yet (the UI only shows this button in that case). Unlike
+ * cancelLead/cancelRound (which resolve one specific round), this closes out
+ * *every* currently-unresolved round on the lead with the same reason, so
+ * nothing is left dangling as "Planned" underneath a lead that's now
+ * Rejected/No Response.
+ */
+export async function dropLead(leadId: string, input: CancelInput) {
+  await requireProfileForAction();
+  const supabase = await createClient();
+
+  const { data: rounds } = await supabase
+    .from("lead_rounds")
+    .select("id, executed_date, status")
+    .eq("lead_id", leadId);
+  const unresolvedRounds = (rounds ?? []).filter(
+    (r) => !r.executed_date && stageForStatus(r.status) !== "stalled",
+  );
+  for (const r of unresolvedRounds) {
+    const { error: roundError } = await supabase
+      .from("lead_rounds")
+      .update({
+        status: input.status,
+        ...(input.remarks
+          ? {
+              remarks: await appendRemarks(
+                supabase,
+                "lead_rounds",
+                r.id,
+                input.remarks,
+                "Cancelled",
+              ),
+            }
+          : {}),
+      })
+      .eq("id", r.id);
+    if (roundError) throw new Error(roundError.message);
+  }
+
+  const { error } = await supabase
+    .from("leads")
+    .update({
+      status: input.status,
+      ...(input.remarks
+        ? {
+            remarks: await appendRemarks(
+              supabase,
+              "leads",
+              leadId,
+              input.remarks,
+              "Cancelled",
+            ),
+          }
+        : {}),
+    })
+    .eq("id", leadId);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/calendar");
+  revalidatePath("/admin");
+}
+
+/**
  * Reverses a wrongly-completed lead: sets it back to "Planned" and clears
  * executed_date, so it re-enters the normal pipeline instead of sitting in
  * Completed with nothing genuine behind it. For leads that were marked

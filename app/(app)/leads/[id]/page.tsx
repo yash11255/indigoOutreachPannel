@@ -23,11 +23,13 @@ import {
   markRoundExecuted,
   cancelLead,
   cancelRound,
+  dropLead,
 } from "@/lib/actions/leads";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { buildLeadTimeline, stageForStatus, canEditLeads } from "@/lib/types";
+import { hasAwarenessSession } from "@/lib/outreach-taxonomy";
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -111,6 +113,13 @@ export default async function LeadDetailPage({
   // per round, so each round's "Mark as executed" dialog checks against all
   // of these, not just itself.
   const allActivities = [lead.activity_undertaken, ...rounds.map((r) => r.activity_undertaken)];
+  // The top-level "Drop lead" button: available at any stage as long as the
+  // lead isn't already resolved and no genuine session has happened yet —
+  // once a real session is on record, dropping it should go through the
+  // normal per-round Cancel action instead, not this shortcut.
+  const leadAlreadyResolved =
+    lead.status === "Activity Completed" || stageForStatus(lead.status) === "stalled";
+  const canDropLead = canEdit && !leadAlreadyResolved && !hasAwarenessSession(allActivities);
 
   return (
     <div className="flex flex-col gap-6">
@@ -132,6 +141,13 @@ export default async function LeadDetailPage({
         </div>
         {canEdit && (
           <div className="flex gap-2">
+            {canDropLead && (
+              <CancelActivityDialog
+                title={lead.institution_name}
+                onConfirm={dropLead.bind(null, lead.id)}
+                trigger={<Button variant="destructive">Drop lead</Button>}
+              />
+            )}
             <LeadFormDialog
               mode="edit"
               lead={lead}
