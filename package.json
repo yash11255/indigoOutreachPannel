@@ -10,7 +10,7 @@
     "migrate": "tsx scripts/migrate-excel.ts",
     "scholarship:sync-worker": "tsx scripts/scholarship-sync-worker.ts",
     "close-overdue-leads": "tsx scripts/close-overdue-leads.ts",
-    "test:unit": "tsx --test lib/__tests__/*.test.ts",
+    "test:unit": "tsx --test lib/__tests__/*.test.ts lib/scholarship/__tests__/*.test.ts",
     "test:e2e": "playwright test",
     "test": "npm run test:unit && npm run test:e2e"
   },
