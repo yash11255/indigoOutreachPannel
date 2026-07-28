@@ -111,23 +111,34 @@ function addGroupedSummarySheet(
     { header: "Girls reached", key: "girlsReached", width: 14 },
   ];
 
-  const groups = new Map<string, Lead[]>();
+  // Grouped case-insensitively (keyed on the lowercased value, labeled with
+  // whichever raw casing was most common) — the same place/state/district/
+  // member routinely shows up with inconsistent casing across leads (e.g.
+  // "Jaipur" vs "JAIPUR"), and grouping on the raw string would silently
+  // split one real group into multiple rows.
+  const groups = new Map<string, { label: string; labelCounts: Map<string, number>; rows: Lead[] }>();
   for (const l of leads) {
-    const key = keyOf(l) || "Unspecified";
-    const arr = groups.get(key) ?? [];
-    arr.push(l);
-    groups.set(key, arr);
+    const raw = keyOf(l)?.trim() || "Unspecified";
+    const normKey = raw.toLowerCase();
+    const entry = groups.get(normKey) ?? { label: raw, labelCounts: new Map(), rows: [] as Lead[] };
+    entry.rows.push(l);
+    entry.labelCounts.set(raw, (entry.labelCounts.get(raw) ?? 0) + 1);
+    entry.label = [...entry.labelCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    groups.set(normKey, entry);
   }
   for (const name of extraEmptyGroups) {
-    if (!groups.has(name)) groups.set(name, []);
+    const normKey = name.toLowerCase();
+    if (!groups.has(normKey)) groups.set(normKey, { label: name, labelCounts: new Map(), rows: [] as Lead[] });
   }
 
-  const sorted = Array.from(groups.entries()).sort((a, b) => {
-    if (a[1].length === 0 && b[1].length === 0) return a[0].localeCompare(b[0]);
-    if (a[1].length === 0) return 1;
-    if (b[1].length === 0) return -1;
-    return b[1].length - a[1].length;
-  });
+  const sorted = Array.from(groups.values())
+    .map((entry) => [entry.label, entry.rows] as const)
+    .sort((a, b) => {
+      if (a[1].length === 0 && b[1].length === 0) return a[0].localeCompare(b[0]);
+      if (a[1].length === 0) return 1;
+      if (b[1].length === 0) return -1;
+      return b[1].length - a[1].length;
+    });
   for (const [group, rows] of sorted) {
     const stages = stageCounts(rows, roundsByLead);
     sheet.addRow({
@@ -661,8 +672,9 @@ export async function GET(request: Request) {
       (!filterRegion || l.region === filterRegion) &&
       (!filterTeamId || l.team_id === filterTeamId) &&
       (!filterSubTeam || l.sub_team === filterSubTeam) &&
-      (!filterState || l.state === filterState) &&
-      (!filterDistrict || l.district_city === filterDistrict) &&
+      (!filterState || l.state?.trim().toLowerCase() === filterState.toLowerCase()) &&
+      (!filterDistrict ||
+        l.district_city?.trim().toLowerCase() === filterDistrict.toLowerCase()) &&
       (!filterMember || l.responsible_member?.trim() === filterMember) &&
       (!filterCreatedOn || createdOnDay(l.created_at) === filterCreatedOn) &&
       (!filterStages?.length ||

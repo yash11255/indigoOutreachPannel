@@ -73,6 +73,14 @@ function formatDay(isoDay: string): string {
   });
 }
 
+/**
+ * Groups case-insensitively (keyed on the lowercased value) since the same
+ * district/state routinely shows up with inconsistent casing across leads
+ * (e.g. "Jaipur" vs "JAIPUR") — grouping on the raw string would silently
+ * split one place into multiple rows. The display label shown is whichever
+ * raw casing was seen most often for that group, so a single stray
+ * all-caps entry doesn't override the otherwise-consistent spelling.
+ */
 function groupCount(
   leads: {
     region: string | null;
@@ -82,16 +90,24 @@ function groupCount(
   }[],
   keyOf: (l: (typeof leads)[number]) => string | null,
 ) {
-  const map = new Map<string, { total: number; completed: number }>();
+  const map = new Map<
+    string,
+    { total: number; completed: number; labelCounts: Map<string, number> }
+  >();
   for (const l of leads) {
-    const key = keyOf(l) || "Unspecified";
-    const entry = map.get(key) ?? { total: 0, completed: 0 };
+    const raw = keyOf(l)?.trim() || "Unspecified";
+    const normKey = raw.toLowerCase();
+    const entry = map.get(normKey) ?? { total: 0, completed: 0, labelCounts: new Map() };
     entry.total += 1;
     if (stageForStatus(l.status) === "completed") entry.completed += 1;
-    map.set(key, entry);
+    entry.labelCounts.set(raw, (entry.labelCounts.get(raw) ?? 0) + 1);
+    map.set(normKey, entry);
   }
-  return Array.from(map.entries())
-    .map(([name, stats]) => ({ name, ...stats }))
+  return Array.from(map.values())
+    .map((stats) => {
+      const label = [...stats.labelCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+      return { name: label, total: stats.total, completed: stats.completed };
+    })
     .sort((a, b) => b.total - a.total);
 }
 
@@ -166,8 +182,8 @@ export default async function AdminSegmentPage({
       (!region || l.region === region) &&
       (!teamId || l.team_id === teamId) &&
       (!subTeam || l.sub_team === subTeam) &&
-      (!state || l.state === state) &&
-      (!district || l.district_city === district) &&
+      (!state || l.state?.trim().toLowerCase() === state.toLowerCase()) &&
+      (!district || l.district_city?.trim().toLowerCase() === district.toLowerCase()) &&
       (!member || l.responsible_member?.trim() === member) &&
       (!date || createdOnDay(l.created_at) === date) &&
       (!stageFilter ||
