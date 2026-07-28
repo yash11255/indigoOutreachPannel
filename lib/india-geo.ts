@@ -1,5 +1,5 @@
 /** Normalizes a state name for matching between our `leads.state` values and the map's `st_nm` property (which spells out "and" instead of "&"). */
-function rawNormalize(name: string): string {
+export function rawNormalize(name: string): string {
   return name
     .toLowerCase()
     .replace(/&/g, "and")

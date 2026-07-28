@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/data/session";
 import { getRegionsStates } from "@/lib/data/lookups";
+import { rawNormalize } from "@/lib/india-geo";
 import {
   getScholarshipApplications,
   getLatestScholarshipSyncRun,
@@ -33,9 +34,19 @@ export default async function ScholarshipOverviewPage() {
     getLatestScholarshipSyncRun(),
   ]);
 
-  const stateToRegion = new Map(regionsStates.map((rs) => [rs.state.toLowerCase(), rs.region]));
+  // The Scholarship Portal spells "and" out ("JAMMU AND KASHMIR") where our
+  // own regions_states table uses "&" ("Jammu & Kashmir") — a plain
+  // lowercase/trim compare misses that and silently drops the state into
+  // "Unspecified". rawNormalize() (shared with the leads/India-map state
+  // matching, which has the same "&" vs "and" mismatch) collapses both
+  // spellings to the same key; stripping a leading "the " on top of that
+  // additionally catches "THE DADRA AND NAGAR HAVELI AND DAMAN AND DIU".
+  const normalizeForMatch = (s: string) => rawNormalize(s).replace(/^the /, "");
+  const stateToRegion = new Map(
+    regionsStates.map((rs) => [normalizeForMatch(rs.state), rs.region]),
+  );
   const regionOf = (state: string | null) =>
-    state ? (stateToRegion.get(state.trim().toLowerCase()) ?? null) : null;
+    state ? (stateToRegion.get(normalizeForMatch(state)) ?? null) : null;
 
   const registered = applications.filter((a) => a.record_type === "registered").length;
   const draft = applications.filter((a) => a.record_type === "draft").length;
