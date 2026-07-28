@@ -35,6 +35,8 @@ export type Profile = {
   manager_id: string | null;
   /** A second, view-only manager — sees this person's leads same as manager_id, but can't edit them (unlike the primary manager). */
   secondary_manager_id: string | null;
+  /** Employment category, not a permission level — an intern has exactly the same access as a regular member. */
+  is_intern: boolean;
   created_at: string;
 };
 

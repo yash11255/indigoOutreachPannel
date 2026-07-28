@@ -44,6 +44,7 @@ function MemberRowImpl({
   const [secondaryManagerId, setSecondaryManagerId] = useState(
     profile.secondary_manager_id ?? "",
   );
+  const [isIntern, setIsIntern] = useState(profile.is_intern);
   const [pending, startTransition] = useTransition();
   const subTeamOptions = subTeamsByTeam[teamId] ?? [];
 
@@ -56,6 +57,7 @@ function MemberRowImpl({
     fd.set("sub_team", subTeam);
     fd.set("manager_id", managerId);
     fd.set("secondary_manager_id", secondaryManagerId);
+    fd.set("is_intern", isIntern ? "1" : "0");
     startTransition(async () => {
       try {
         await updateMember(fd);
@@ -72,7 +74,8 @@ function MemberRowImpl({
     teamId !== (profile.team_id ?? "") ||
     subTeam !== (profile.sub_team ?? "") ||
     managerId !== (profile.manager_id ?? "") ||
-    secondaryManagerId !== (profile.secondary_manager_id ?? "");
+    secondaryManagerId !== (profile.secondary_manager_id ?? "") ||
+    isIntern !== profile.is_intern;
 
   // allProfiles arrives pre-sorted from the parent (once, not per-row) — this
   // just drops self, cheaply, instead of re-sorting 400+ profiles per row.
@@ -138,6 +141,19 @@ function MemberRowImpl({
             <SelectItem value="admin">Admin</SelectItem>
           </SelectContent>
         </Select>
+      </TableCell>
+      <TableCell>
+        {role === "member" ? (
+          <input
+            type="checkbox"
+            checked={isIntern}
+            onChange={(e) => setIsIntern(e.target.checked)}
+            className="h-4 w-4"
+            aria-label="Intern"
+          />
+        ) : (
+          <span className="text-sm text-neutral-400">—</span>
+        )}
       </TableCell>
       <TableCell>
         {role === "member" || role === "team_admin" ? (

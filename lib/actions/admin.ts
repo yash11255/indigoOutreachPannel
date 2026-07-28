@@ -37,6 +37,7 @@ export async function createMember(
   const teamId = String(formData.get("team_id") ?? "").trim();
   const subTeam = String(formData.get("sub_team") ?? "").trim();
   const role = String(formData.get("role") ?? "member").trim();
+  const isIntern = formData.get("is_intern") === "1";
 
   if (!email) return { error: "Email is required." };
   if ((role === "member" || role === "team_admin") && !teamId)
@@ -73,6 +74,7 @@ export async function createMember(
       team_id: role === "admin" ? null : teamId,
       sub_team: role === "team_admin" ? subTeam || null : null,
       role,
+      is_intern: isIntern,
     })
     .eq("id", created.user.id);
 
@@ -160,6 +162,7 @@ export async function updateMember(formData: FormData) {
   const secondaryManagerId = String(
     formData.get("secondary_manager_id") ?? "",
   ).trim();
+  const isIntern = formData.get("is_intern") === "1";
   if (!userId) throw new Error("Missing user id");
   if (managerId === userId)
     throw new Error("A person can't be their own manager.");
@@ -186,6 +189,7 @@ export async function updateMember(formData: FormData) {
       sub_team: role === "team_admin" ? subTeam || null : null,
       manager_id: managerId || null,
       secondary_manager_id: secondaryManagerId || null,
+      is_intern: isIntern,
     })
     .eq("id", userId);
 

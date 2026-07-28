@@ -35,7 +35,14 @@ export function SearchableUsersTable({
     const q = deferredQuery.trim().toLowerCase();
     if (!q) return profiles;
     return profiles.filter((p) =>
-      [p.full_name, p.email, p.home_team, teamNameById.get(p.team_id ?? ""), p.role]
+      [
+        p.full_name,
+        p.email,
+        p.home_team,
+        teamNameById.get(p.team_id ?? ""),
+        p.role,
+        p.is_intern ? "intern" : null,
+      ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
@@ -57,7 +64,7 @@ export function SearchableUsersTable({
   return (
     <div className="flex flex-col gap-3">
       <Input
-        placeholder="Search by name, email, home team, or outreach team…"
+        placeholder='Search by name, email, home team, outreach team, or "intern"…'
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
@@ -73,6 +80,7 @@ export function SearchableUsersTable({
             <TableHead>Email</TableHead>
             <TableHead>Home team</TableHead>
             <TableHead>Role</TableHead>
+            <TableHead>Intern</TableHead>
             <TableHead>Outreach team</TableHead>
             <TableHead>Manager</TableHead>
             <TableHead>Secondary manager</TableHead>

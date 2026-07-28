@@ -32,6 +32,7 @@ export function CreateMemberForm({
   const [role, setRole] = useState<Role>("member");
   const [teamId, setTeamId] = useState("");
   const [subTeam, setSubTeam] = useState("");
+  const [isIntern, setIsIntern] = useState(false);
   const needsTeam = role === "member" || role === "team_admin";
   const subTeamOptions = subTeamsByTeam[teamId] ?? [];
 
@@ -75,6 +76,25 @@ export function CreateMemberForm({
               </p>
             )}
           </div>
+
+          {role === "member" && (
+            <div className="flex flex-col gap-2">
+              <Label>Employment type</Label>
+              <Label className="flex cursor-pointer items-center gap-2 font-normal">
+                <input
+                  type="checkbox"
+                  checked={isIntern}
+                  onChange={(e) => setIsIntern(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                Intern
+              </Label>
+              <input type="hidden" name="is_intern" value={isIntern ? "1" : "0"} />
+              <p className="text-xs text-neutral-500">
+                Same access as a regular member — this is just a label for tracking, searchable in the users list below.
+              </p>
+            </div>
+          )}
           {needsTeam && (
             <div className="flex flex-col gap-2">
               <Label htmlFor="team_id">Outreach team</Label>
