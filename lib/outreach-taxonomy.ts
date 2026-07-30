@@ -134,6 +134,7 @@ export const OUTREACH_ACTIVITIES = [
   "Official meeting",
   "Press release",
   "Radio spot",
+  "RTO session",
   "Social media posting",
   "Social media promotion/ Posting",
   "Story/reel posting",
@@ -155,6 +156,7 @@ export const AWARENESS_SESSION_ACTIVITIES = [
   "Awareness session - Faculty",
   "Community awareness meeting",
   "Webinar session",
+  "RTO session",
 ];
 
 /** Matches AWARENESS_SESSION_ACTIVITIES fuzzily — robust to typos ("Awarness
@@ -162,7 +164,7 @@ export const AWARENESS_SESSION_ACTIVITIES = [
  * string ("Flyer distribution, Awareness Session - Students") rather than
  * one exact taxonomy value. */
 const AWARENESS_SESSION_PATTERN =
-  /aware?ness\s*session|community\s*awareness\s*meeting|webinar\s*session|physical(ly)?\s*session/i;
+  /aware?ness\s*session|community\s*awareness\s*meeting|webinar\s*session|physical(ly)?\s*session|rto\s*session/i;
 
 /** True if any of the given activity_undertaken values (this round's plus
  * every prior round's) represents a genuine awareness session. */
