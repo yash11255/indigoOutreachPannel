@@ -25,9 +25,20 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getUser() throws (rather than returning { error }) when the request's
+  // refresh token cookie is stale/invalid/missing — e.g. an old session
+  // left over from before a password reset, or cookies from a previous
+  // deploy. Left uncaught, that crashed this middleware on every such
+  // request instead of just treating the visitor as logged out.
+  let user = null;
+  try {
+    const {
+      data: { user: fetchedUser },
+    } = await supabase.auth.getUser();
+    user = fetchedUser;
+  } catch {
+    user = null;
+  }
 
   const isPublic = request.nextUrl.pathname.startsWith("/login");
 
